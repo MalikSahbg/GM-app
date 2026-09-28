@@ -209,4 +209,107 @@ export interface DashboardStats {
   totalCustomers: number;
   totalCompanies: number;
   totalPurchasesAmount: number;
+  // Field Sales & Orders metrics
+  pendingOrdersCount?: number;
+  todayOrdersCount?: number;
+  todayOrdersQuantity?: number;
+  companiesWithPendingOrders?: number;
 }
+
+export type CustomerOrderStatus =
+  | 'Pending'
+  | 'Sent to Company'
+  | 'Confirmed'
+  | 'Processing'
+  | 'Dispatched'
+  | 'Delivered'
+  | 'Cancelled';
+
+export type CompanyOrderStatus =
+  | 'Pending'
+  | 'Sent to Company'
+  | 'Confirmed'
+  | 'Processing'
+  | 'Dispatched'
+  | 'Completed'
+  | 'Partially Supplied';
+
+export interface OrderItem {
+  productId: string;
+  productName: string;
+  companyId: string;
+  companyName: string;
+  unit: string;
+  quantity: number;
+  price?: number;
+  totalPrice?: number;
+}
+
+export interface CustomerOrder {
+  id: string;
+  orderNumber: string; // e.g. ORD-000001
+  customerId: string;
+  customerName: string;
+  customerPhone: string;
+  customerWhatsApp?: string;
+  customerAddress?: string;
+  date: string;
+  salesRepName: string;
+  items: OrderItem[];
+  totalProducts: number;
+  totalQuantity: number;
+  totalAmount?: number;
+  status: CustomerOrderStatus;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface CompanyOrderItemBreakdown {
+  orderId: string;
+  orderNumber: string;
+  customerId: string;
+  customerName: string;
+  customerPhone: string;
+  quantity: number;
+  unit: string;
+  date: string;
+  status: CustomerOrderStatus;
+}
+
+export interface CompanyConsolidatedProduct {
+  productId: string;
+  productName: string;
+  unit: string;
+  totalQuantity: number;
+  customerBreakdown: CompanyOrderItemBreakdown[];
+}
+
+export interface CompanyConsolidatedOrder {
+  companyId: string;
+  companyName: string;
+  companyPhone?: string;
+  companyEmail?: string;
+  orderNumber: string; // e.g. CO-000001
+  orderDate: string;
+  status: CompanyOrderStatus;
+  totalCustomers: number;
+  totalProducts: number;
+  totalQuantity: number;
+  products: CompanyConsolidatedProduct[];
+  customerOrders: {
+    orderId: string;
+    orderNumber: string;
+    customerId: string;
+    customerName: string;
+    customerPhone: string;
+    date: string;
+    status: CustomerOrderStatus;
+    items: {
+      productId: string;
+      productName: string;
+      unit: string;
+      quantity: number;
+    }[];
+  }[];
+}
+

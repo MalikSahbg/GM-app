@@ -1,3 +1,10 @@
+tasks.register("clean") {
+    doLast {
+        println("Cleaning build artifacts...")
+        delete("dist")
+    }
+}
+
 tasks.register("assembleDebug") {
     doLast {
         println("Compiling and verifying React Vite applet...")
