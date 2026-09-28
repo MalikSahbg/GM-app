@@ -1,324 +1,86 @@
-# Sales Manager — Complete Android App (Kotlin + Room + MVVM)
+# Sales Manager (Web Application)
+
+A modern, responsive React + TypeScript web application rewritten from the Android **SalesApp / GM-app** architecture. It provides complete inventory tracking, vendor company management, customer directory, sales recording with automated stock deduction, and real-time **Udhaar (credit/debt ledger)** management.
 
 ---
 
-## Project File Structure
+## Features Ported & Implemented
 
-```
-SalesApp/
-├── build.gradle.kts                          ← Root build file
-├── settings.gradle.kts                       ← Module settings
-├── gradle/
-│   └── libs.versions.toml                    ← Dependency catalog
-│
-└── app/
-    ├── build.gradle.kts                      ← App-level deps & plugins
-    └── src/main/
-        ├── AndroidManifest.xml
-        ├── java/com/salesapp/
-        │   ├── data/
-        │   │   ├── model/
-        │   │   │   ├── Entities.kt           ← User, Company, Product, Customer, Sale
-        │   │   │   └── DataClasses.kt        ← ProductWithCompany, CustomerBalance, SaleDetail
-        │   │   ├── dao/
-        │   │   │   ├── UserDao.kt
-        │   │   │   ├── CompanyDao.kt
-        │   │   │   ├── ProductDao.kt
-        │   │   │   ├── CustomerDao.kt
-        │   │   │   └── SaleDao.kt
-        │   │   ├── database/
-        │   │   │   └── AppDatabase.kt        ← Room singleton
-        │   │   └── repository/
-        │   │       └── Repositories.kt       ← All 5 repositories
-        │   └── ui/
-        │       ├── ViewModelFactory.kt
-        │       ├── auth/
-        │       │   ├── AuthViewModel.kt
-        │       │   ├── LoginActivity.kt
-        │       │   └── SignupActivity.kt
-        │       ├── dashboard/
-        │       │   ├── DashboardViewModel.kt
-        │       │   └── DashboardActivity.kt
-        │       ├── company/
-        │       │   ├── CompanyViewModel.kt
-        │       │   ├── CompanyAdapter.kt
-        │       │   └── CompanyActivity.kt
-        │       ├── product/
-        │       │   ├── ProductViewModel.kt
-        │       │   ├── ProductAdapter.kt
-        │       │   └── ProductActivity.kt
-        │       ├── customer/
-        │       │   ├── CustomerViewModel.kt
-        │       │   ├── CustomerAdapter.kt
-        │       │   └── CustomerActivity.kt
-        │       ├── sale/
-        │       │   ├── SaleViewModel.kt
-        │       │   ├── SaleAdapter.kt
-        │       │   └── SaleActivity.kt
-        │       ├── balance/
-        │       │   ├── CustomerBalanceViewModel.kt
-        │       │   ├── CustomerBalanceAdapter.kt
-        │       │   └── CustomerBalanceActivity.kt
-        │       └── stock/
-        │           ├── StockViewModel.kt
-        │           ├── StockAdapter.kt
-        │           └── StockActivity.kt
-        └── res/
-            ├── layout/
-            │   ├── activity_login.xml
-            │   ├── activity_signup.xml
-            │   ├── activity_dashboard.xml
-            │   ├── activity_company.xml
-            │   ├── activity_product.xml
-            │   ├── activity_customer.xml
-            │   ├── activity_sale.xml
-            │   ├── activity_customer_balance.xml
-            │   ├── activity_stock.xml
-            │   ├── item_company.xml
-            │   ├── item_product.xml
-            │   ├── item_customer.xml
-            │   ├── item_sale.xml
-            │   ├── item_customer_balance.xml
-            │   └── item_stock.xml
-            ├── drawable/
-            │   └── spinner_background.xml
-            └── values/
-                ├── colors.xml
-                ├── strings.xml
-                └── themes.xml
-```
+### 1. 🏢 Companies & Suppliers (`CompanyActivity`)
+- Full vendor/distributor registry (name, phone, email, warehouse address).
+- Dynamic count of products supplied by each vendor.
+- Company validation: ensures a vendor exists before assigning products.
+- Add, Edit, and Delete company operations.
+
+### 2. 📦 Products Catalog (`ProductActivity`)
+- Products linked to their parent suppliers/companies.
+- Retail pricing, stock level tracking, and category tags.
+- Add, Edit, Delete, and live search/filtering by company and name.
+
+### 3. 👥 Customers Directory (`CustomerActivity`)
+- Customer directory with direct phone and address tracking.
+- Real-time order count and outstanding balance summary for each customer.
+- One-click phone call and WhatsApp message integration.
+- Full CRUD operations.
+
+### 4. 🛒 Sales Recording & Billing (`SaleActivity`)
+- Select customer and product with real-time stock availability check.
+- Automatic price calculation (`quantity * unitPrice`).
+- Flexible payment terms:
+  - **Full Cash:** Payment equal to total bill.
+  - **Full Udhaar:** 0 cash paid, full amount recorded as customer credit/debt.
+  - **Partial Paid:** Custom down payment with remainder added to customer's Udhaar.
+- Stock quantity auto-deducted immediately upon sale completion.
+- Interactive, printable **Sale Invoice / Receipt Modal** with share capabilities.
+
+### 5. 💰 Udhaar / Balance Ledger (`CustomerBalanceActivity`)
+- As specified in the original application:
+  - **Red Cards:** Highlight customers with active, unpaid Udhaar balances.
+  - **Green Cards:** Highlight customers whose accounts are fully settled.
+  - **Total Outstanding Udhaar:** Prominently calculated and displayed at the top banner.
+- **Collect Payment Modal:** Record cash or online repayments against a customer's Udhaar, automatically updating balance status.
+- **WhatsApp Reminder:** Generates pre-formatted payment reminder messages with customer name and exact balance due.
+
+### 6. 📊 Stock Inventory Management (`StockActivity`)
+- Real-time stock audit across all products.
+- **⚠️ LOW Badge:** Displayed when product stock is $\le 5$ units.
+- **Low Stock Count:** Displayed at the top KPI banner.
+- **Quick Restock:** Fast $+5$, $+10$, and $+50$ replenishment buttons.
+- Filter by Low Stock, Out of Stock, or In Stock.
+
+### 7. 📈 Dashboard Overview (`DashboardActivity`)
+- Key performance metrics:
+  - Total Outstanding Udhaar
+  - Cash Revenue Collected
+  - Stock Inventory Units & Low Stock Warnings
+  - Customer Accounts Count
+- Quick-action buttons to launch New Sale, Udhaar Ledger, Stock Inventory, Add Product, Add Company, and Add Customer.
+- Priority widgets: Highest Outstanding Udhaar list and Low Stock alerts.
+- Live Recent Sales feed.
+
+### 8. 🔐 Authentication & Session (`LoginActivity`, `SignupActivity`)
+- User profile and store name persistence in `localStorage`.
+- Support for Store Owner sign-in, account creation, and quick demo login.
 
 ---
 
-## Step-by-Step Setup in Android Studio
-
-### Step 1 — Create a New Project
-
-1. Open **Android Studio** (Hedgehog or newer)
-2. Click **"New Project"**
-3. Choose **"Empty Views Activity"**
-4. Fill in:
-   - **Name:** `SalesApp`
-   - **Package name:** `com.salesapp`
-   - **Save location:** your preferred folder
-   - **Language:** `Kotlin`
-   - **Minimum SDK:** `API 24`
-5. Click **Finish** and wait for Gradle sync
+## Tech Stack
+- **Framework:** React 18, TypeScript, Vite
+- **Styling:** Tailwind CSS
+- **Icons:** Lucide React
+- **Storage:** Browser `localStorage` with initial seed demo dataset
 
 ---
 
-### Step 2 — Replace Gradle Files
+## Development & Build
 
-Replace the contents of these files with the provided code:
+```bash
+# Install dependencies
+npm install
 
-| File | What to replace |
-|------|----------------|
-| `gradle/libs.versions.toml` | Full dependency catalog |
-| `build.gradle.kts` (root) | Root build file |
-| `app/build.gradle.kts` | App-level build file |
-| `settings.gradle.kts` | Settings file |
+# Start development server
+npm run dev
 
-After replacing, click **"Sync Now"** in the top-right bar.
-
----
-
-### Step 3 — Create Package Folders
-
-In `app/src/main/java/com/salesapp/`, right-click and create these packages:
-
-```
-data.model
-data.dao
-data.database
-data.repository
-ui
-ui.auth
-ui.dashboard
-ui.company
-ui.product
-ui.customer
-ui.sale
-ui.balance
-ui.stock
-```
-
----
-
-### Step 4 — Copy All Kotlin Files
-
-Copy each `.kt` file into its matching package:
-
-| Package | Files |
-|---------|-------|
-| `data.model` | `Entities.kt`, `DataClasses.kt` |
-| `data.dao` | `UserDao.kt`, `CompanyDao.kt`, `ProductDao.kt`, `CustomerDao.kt`, `SaleDao.kt` |
-| `data.database` | `AppDatabase.kt` |
-| `data.repository` | `Repositories.kt` |
-| `ui` | `ViewModelFactory.kt` |
-| `ui.auth` | `AuthViewModel.kt`, `LoginActivity.kt`, `SignupActivity.kt` |
-| `ui.dashboard` | `DashboardViewModel.kt`, `DashboardActivity.kt` |
-| `ui.company` | `CompanyViewModel.kt`, `CompanyAdapter.kt`, `CompanyActivity.kt` |
-| `ui.product` | `ProductViewModel.kt`, `ProductAdapter.kt`, `ProductActivity.kt` |
-| `ui.customer` | `CustomerViewModel.kt`, `CustomerAdapter.kt`, `CustomerActivity.kt` |
-| `ui.sale` | `SaleViewModel.kt`, `SaleAdapter.kt`, `SaleActivity.kt` |
-| `ui.balance` | `CustomerBalanceViewModel.kt`, `CustomerBalanceAdapter.kt`, `CustomerBalanceActivity.kt` |
-| `ui.stock` | `StockViewModel.kt`, `StockAdapter.kt`, `StockActivity.kt` |
-
----
-
-### Step 5 — Copy All XML Files
-
-Replace `res/layout/activity_main.xml` with the provided `activity_login.xml`, then
-add all other XML files under `res/layout/`:
-
-```
-activity_login.xml         activity_signup.xml
-activity_dashboard.xml     activity_company.xml
-activity_product.xml       activity_customer.xml
-activity_sale.xml          activity_customer_balance.xml
-activity_stock.xml
-item_company.xml           item_product.xml
-item_customer.xml          item_sale.xml
-item_customer_balance.xml  item_stock.xml
-```
-
-Also add to `res/drawable/`:
-```
-spinner_background.xml
-```
-
-Replace `res/values/`:
-```
-colors.xml    strings.xml    themes.xml
-```
-
----
-
-### Step 6 — Replace AndroidManifest.xml
-
-Replace the entire content of `app/src/main/AndroidManifest.xml` with the provided version.
-
-> **Important:** Delete the default `MainActivity` from the project since the launcher is now `LoginActivity`.
-
----
-
-### Step 7 — Build & Run
-
-1. Connect an Android device or start an emulator (API 24+)
-2. Click the **Run ▶** button
-3. The app will launch on the **Login screen**
-
----
-
-## How to Use the App
-
-### First-Time Setup
-
-```
-1. Open app → Login screen appears
-2. Tap "Don't have an account? Sign Up"
-3. Enter name, email, password → tap "CREATE ACCOUNT"
-4. Log in with your credentials
-5. Dashboard opens ✓
-```
-
-### Typical Workflow
-
-```
-Step 1: Add Companies
-   Dashboard → 🏢 Companies → type name → ADD
-
-Step 2: Add Products
-   Dashboard → 📦 Products → fill details → ADD PRODUCT
-   (Company must be added first)
-
-Step 3: Add Customers
-   Dashboard → 👥 Customers → fill name & phone → ADD CUSTOMER
-
-Step 4: Record a Sale
-   Dashboard → 🛒 New Sale
-   → Select customer from dropdown
-   → Select product from dropdown
-   → Enter quantity (stock auto-checked)
-   → Enter paid amount (leave 0 for full udhaar)
-   → Tap RECORD SALE
-   → Stock reduces automatically ✓
-
-Step 5: Check Udhaar (Balance)
-   Dashboard → 💰 Udhaar
-   → Red cards = customers with unpaid balance
-   → Green cards = fully paid customers
-   → Total outstanding shown at top
-
-Step 6: Check Stock
-   Dashboard → 📊 Stock
-   → ⚠️ LOW badge appears when stock ≤ 5
-   → Low stock count shown at top
-```
-
----
-
-## Architecture Overview
-
-```
-UI Layer (Activities + Adapters)
-       ↓ observes LiveData
-ViewModel Layer (business logic, validation)
-       ↓ calls suspend functions
-Repository Layer (data access abstraction)
-       ↓
-Room Database (DAOs + Entities)
-       ↓
-SQLite (local storage on device)
-```
-
-### Key Design Decisions
-
-| Feature | Implementation |
-|---------|---------------|
-| Local Auth | Room DB — email/password stored locally |
-| Session | SharedPreferences — user_id persists login |
-| Stock check | Done in ViewModel before recording sale |
-| Udhaar query | SQL LEFT JOIN with SUM aggregation |
-| Auto price | TextWatcher on quantity field |
-| LiveData lists | Room returns `LiveData<List<T>>` — UI auto-updates |
-
----
-
-## Database Schema
-
-```sql
-users        (id, name, email, password)
-companies    (id, name)
-products     (id, name, companyId→companies, price, stockQuantity)
-customers    (id, name, phone)
-sales        (id, customerId→customers, productId→products,
-              quantity, date, totalPrice, paidAmount)
-```
-
----
-
-## Common Issues & Fixes
-
-| Problem | Fix |
-|---------|-----|
-| Gradle sync fails | Check `libs.versions.toml` versions match exactly |
-| `kapt` not found | Add `kotlin-kapt` plugin in `app/build.gradle.kts` |
-| Room compile error | Make sure all DAOs are listed in `@Database` |
-| Spinner crash | Ensure companies/customers list is non-empty before selecting |
-| Login not persisting | Check SharedPreferences key matches in Login + Dashboard |
-| Cannot add product | Add at least one company first |
-
----
-
-## Dependencies Used
-
-```toml
-Room         2.6.1   ← Local database (SQLite ORM)
-ViewModel    2.7.0   ← MVVM architecture
-LiveData     2.7.0   ← Reactive UI updates
-Coroutines   1.7.3   ← Async DB operations
-Material     1.11.0  ← Cards, TextInputLayout, Buttons
-RecyclerView 1.3.2   ← All lists
-CardView     1.0.0   ← Item cards
+# Build production bundle
+npm run build
 ```

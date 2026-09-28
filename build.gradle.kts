@@ -1,6 +1,34 @@
-// Top-level build file where you can add configuration options common to all sub-projects/modules.
-plugins {
-    alias(libs.plugins.android.application) apply false
-    alias(libs.plugins.kotlin.android) apply false
-    alias(libs.plugins.kotlin.kapt) apply false
+tasks.register("assembleDebug") {
+    doLast {
+        println("Compiling and verifying React Vite applet...")
+        val isWindows = System.getProperty("os.name").lowercase().contains("windows")
+        val npmCmd = if (isWindows) "npm.cmd" else "npm"
+        val process = ProcessBuilder(npmCmd, "run", "build")
+            .redirectOutput(ProcessBuilder.Redirect.INHERIT)
+            .redirectError(ProcessBuilder.Redirect.INHERIT)
+            .start()
+        val exitCode = process.waitFor()
+        if (exitCode != 0) {
+            throw GradleException("Vite compilation failed with exit code $exitCode")
+        }
+        println("Vite compilation succeeded!")
+    }
 }
+
+tasks.register("lint") {
+    doLast {
+        println("Running TypeScript type check...")
+        val isWindows = System.getProperty("os.name").lowercase().contains("windows")
+        val npxCmd = if (isWindows) "npx.cmd" else "npx"
+        val process = ProcessBuilder(npxCmd, "tsc", "--noEmit")
+            .redirectOutput(ProcessBuilder.Redirect.INHERIT)
+            .redirectError(ProcessBuilder.Redirect.INHERIT)
+            .start()
+        val exitCode = process.waitFor()
+        if (exitCode != 0) {
+            throw GradleException("TypeScript type check failed with exit code $exitCode")
+        }
+        println("TypeScript check succeeded!")
+    }
+}
+
