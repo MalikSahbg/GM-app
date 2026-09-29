@@ -2,6 +2,7 @@ import React from 'react';
 import {
   LayoutDashboard,
   ShoppingCart,
+  ClipboardList,
   Truck,
   CreditCard,
   Wallet,
@@ -24,7 +25,15 @@ export const Navigation: React.FC<NavigationProps> = ({ currentTab, onSelectTab 
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'new-sale', label: 'New Sale', icon: ShoppingCart, highlight: true },
+    {
+      id: 'orders',
+      label: 'Orders',
+      icon: ClipboardList,
+      highlight: true,
+      badge: stats.pendingOrdersCount && stats.pendingOrdersCount > 0 ? stats.pendingOrdersCount : undefined,
+      badgeColor: 'bg-emerald-600',
+    },
+    { id: 'new-sale', label: 'New Sale', icon: ShoppingCart },
     { id: 'purchases', label: 'Purchases', icon: Truck },
     { id: 'payments', label: 'Payments', icon: CreditCard },
     {

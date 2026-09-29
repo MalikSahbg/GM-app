@@ -16,11 +16,14 @@ import {
   Truck,
   CreditCard,
   CheckCircle2,
+  ClipboardList,
+  Plus,
 } from 'lucide-react';
 
 interface DashboardViewProps {
   onSelectTab: (tab: string) => void;
   onOpenQuickSale: () => void;
+  onOpenCreateOrder: () => void;
   onOpenAddProduct: () => void;
   onOpenAddCompany: () => void;
   onOpenAddCustomer: () => void;
@@ -30,6 +33,7 @@ interface DashboardViewProps {
 export const DashboardView: React.FC<DashboardViewProps> = ({
   onSelectTab,
   onOpenQuickSale,
+  onOpenCreateOrder,
   onOpenAddProduct,
   onOpenAddCompany,
   onOpenAddCustomer,
@@ -37,6 +41,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 }) => {
   const {
     stats,
+    orders,
     customerBalances,
     salesDetailed,
     productsWithCompany,
@@ -90,21 +95,78 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             Live profit calculations, multi-product invoicing, vendor payables, and customer receivables.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Prominent + Create Order Button (Point 1) */}
+          <button
+            onClick={onOpenCreateOrder}
+            className="flex items-center gap-2 px-4 sm:px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-extrabold text-sm rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95 border border-white/20"
+          >
+            <Plus className="h-4.5 w-4.5 stroke-[3]" />
+            <span>+ Create Order</span>
+          </button>
+
           <button
             onClick={onOpenQuickSale}
-            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold text-sm rounded-xl shadow-md transition-all active:scale-95"
+            className="flex items-center gap-2 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm rounded-xl shadow-md transition-all active:scale-95"
           >
             <ShoppingCart className="h-4 w-4" />
             <span>New Sale</span>
           </button>
           <button
-            onClick={() => onSelectTab('reports')}
+            onClick={() => onSelectTab('orders')}
             className="flex items-center gap-2 px-3.5 py-2.5 bg-white/10 hover:bg-white/20 text-white font-medium text-sm rounded-xl backdrop-blur-xs transition-colors"
           >
-            <TrendingUp className="h-4 w-4 text-emerald-300" />
-            <span>Reports & P&L</span>
+            <ClipboardList className="h-4 w-4 text-emerald-300" />
+            <span>Orders ({orders.length})</span>
           </button>
+        </div>
+      </div>
+
+      {/* Field Orders Overview Banner */}
+      <div
+        onClick={() => onSelectTab('orders')}
+        className="bg-gradient-to-r from-teal-50 via-emerald-50 to-white border border-teal-200/80 rounded-2xl p-4 shadow-2xs hover:border-emerald-400 transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+      >
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-teal-600 text-white rounded-xl shadow-xs">
+            <ClipboardList className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-sm text-slate-900">
+                Order Booking & Management
+              </h3>
+              {stats.pendingOrdersCount && stats.pendingOrdersCount > 0 ? (
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                  {stats.pendingOrdersCount} Pending
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  All Clear
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-600 mt-0.5">
+              Today: <strong>{stats.todayOrdersCount || 0}</strong> orders ({stats.todayOrdersQuantity || 0} items) | Total Saved: <strong>{orders.length}</strong> orders
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 self-end sm:self-center">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenCreateOrder();
+            }}
+            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>Book New Order</span>
+          </button>
+          <span className="text-xs font-semibold text-teal-700 flex items-center gap-0.5 hover:underline">
+            <span>View All</span>
+            <ArrowRight className="h-3.5 w-3.5" />
+          </span>
         </div>
       </div>
 

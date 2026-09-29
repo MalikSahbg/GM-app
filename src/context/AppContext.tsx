@@ -17,6 +17,9 @@ import {
   ProductWithCompany,
   SaleDetail,
   BusinessSettings,
+  CustomerOrder,
+  OrderItem,
+  CustomerOrderStatus,
 } from '../types';
 import {
   INITIAL_USER,
@@ -29,6 +32,7 @@ import {
   INITIAL_CUSTOMER_PAYMENTS,
   INITIAL_COMPANY_PAYMENTS,
   INITIAL_ADJUSTMENTS,
+  INITIAL_CUSTOMER_ORDERS,
 } from '../data/initialData';
 
 interface AppContextType {
@@ -44,6 +48,7 @@ interface AppContextType {
   customerPayments: CustomerPayment[];
   companyPayments: CompanyPayment[];
   stockAdjustments: StockAdjustment[];
+  orders: CustomerOrder[];
   
   // Derived state
   productsWithCompany: ProductWithCompany[];
@@ -125,6 +130,21 @@ interface AppContextType {
   
   // Backward compatibility alias for customer payment
   recordPayment: (customerId: string, amount: number, note?: string) => void;
+
+  // Order Management
+  addOrder: (data: {
+    customerId: string;
+    companyId?: string | null;
+    items: OrderItem[];
+    showPrice?: boolean;
+    notes?: string;
+    date?: string;
+    status?: CustomerOrderStatus;
+  }) => CustomerOrder;
+  updateOrder: (id: string, data: Partial<CustomerOrder>) => void;
+  deleteOrder: (id: string) => void;
+  updateOrderStatus: (id: string, status: CustomerOrderStatus) => void;
+  duplicateOrder: (orderId: string) => CustomerOrder | null;
   
   // Backup / Restore
   resetDemoData: () => void;
@@ -146,6 +166,7 @@ const STORAGE_KEYS = {
   CUSTOMER_PAYMENTS: 'salesapp_cust_payments',
   COMPANY_PAYMENTS: 'salesapp_comp_payments',
   ADJUSTMENTS: 'salesapp_adjustments',
+  ORDERS: 'salesapp_orders',
   LEGACY_PAYMENTS: 'salesapp_payments',
 };
 
@@ -307,6 +328,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   });
 
+  // 11. Customer & Company Orders
+  const [orders, setOrders] = useState<CustomerOrder[]>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.ORDERS);
+      return stored ? JSON.parse(stored) : INITIAL_CUSTOMER_ORDERS;
+    } catch {
+      return INITIAL_CUSTOMER_ORDERS;
+    }
+  });
+
   // Save to localStorage
   useEffect(() => {
     if (currentUser) {
@@ -356,6 +387,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.ADJUSTMENTS, JSON.stringify(stockAdjustments));
   }, [stockAdjustments]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders));
+  }, [orders]);
 
   // Derived: Products with Company Name
   const productsWithCompany = useMemo<ProductWithCompany[]>(() => {
@@ -482,6 +517,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const totalPurchasesAmount = purchases.reduce((acc, p) => acc + p.totalAmount, 0);
 
+    // Order metrics
+    const todayOrders = orders.filter((o) => o.date.slice(0, 10) === todayStr);
+    const todayOrdersCount = todayOrders.length;
+    const todayOrdersQuantity = todayOrders.reduce((acc, o) => acc + o.totalQuantity, 0);
+    const pendingOrdersCount = orders.filter((o) => o.status === 'Pending').length;
+    const companiesWithPendingOrders = new Set(
+      orders.filter((o) => o.status === 'Pending' && o.companyId).map((o) => o.companyId)
+    ).size;
+
     return {
       todaySalesCount,
       todaySalesAmount,
@@ -495,8 +539,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       totalCustomers: customers.length,
       totalCompanies: companies.length,
       totalPurchasesAmount,
+      pendingOrdersCount,
+      todayOrdersCount,
+      todayOrdersQuantity,
+      companiesWithPendingOrders,
     };
-  }, [sales, customerPayments, customerBalances, companyBalances, products, customers, companies, purchases]);
+  }, [sales, customerPayments, customerBalances, companyBalances, products, customers, companies, purchases, orders]);
 
   // Business settings update
   const updateSettings = (newSettings: Partial<BusinessSettings>) => {
@@ -930,6 +978,119 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setCompanyPayments((prev) => prev.filter((p) => p.id !== id));
   };
 
+  // Order Management
+  const addOrder = (data: {
+    customerId: string;
+    companyId?: string | null;
+    items: OrderItem[];
+    showPrice?: boolean;
+    notes?: string;
+    date?: string;
+    status?: CustomerOrderStatus;
+  }): CustomerOrder => {
+    const cust = customers.find((c) => c.id === data.customerId);
+    const comp = data.companyId ? companies.find((c) => c.id === data.companyId) : null;
+
+    const existingNums = orders
+      .map((o) => parseInt(o.orderNumber.replace(/[^0-9]/g, ''), 10))
+      .filter((n) => !isNaN(n));
+    const nextNum = existingNums.length > 0 ? Math.max(...existingNums) + 1 : 128;
+    const orderNumber = `ORD-${String(nextNum).padStart(6, '0')}`;
+    const nowIso = new Date().toISOString();
+
+    const orderId = 'ord-' + Date.now();
+    const processedItems: OrderItem[] = data.items.map((it, idx) => ({
+      ...it,
+      id: it.id || `item-${Date.now()}-${idx}`,
+      orderId: orderId,
+      totalPrice:
+        it.totalPrice !== undefined
+          ? it.totalPrice
+          : it.price
+          ? it.price * it.quantity
+          : 0,
+    }));
+
+    const totalQuantity = processedItems.reduce((sum, it) => sum + (it.quantity || 0), 0);
+    const totalAmount = processedItems.reduce((sum, it) => sum + (it.totalPrice || 0), 0);
+
+    const newOrder: CustomerOrder = {
+      id: orderId,
+      orderNumber,
+      customerId: data.customerId,
+      customerName: cust?.name || 'Customer',
+      customerPhone: cust?.phone || '',
+      customerWhatsApp: cust?.whatsapp || cust?.phone || '',
+      customerAddress: cust?.address || '',
+      companyId: comp ? comp.id : data.companyId || null,
+      companyName: comp ? comp.name : null,
+      date: data.date || nowIso,
+      salesRepName: currentUser?.name || 'Sales Representative',
+      items: processedItems,
+      totalProducts: processedItems.length,
+      totalQuantity,
+      totalAmount,
+      showPrice: data.showPrice !== undefined ? data.showPrice : true,
+      status: data.status || 'Pending',
+      notes: data.notes || '',
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    };
+
+    setOrders((prev) => [newOrder, ...prev]);
+    return newOrder;
+  };
+
+  const updateOrder = (id: string, data: Partial<CustomerOrder>) => {
+    setOrders((prev) =>
+      prev.map((o) => {
+        if (o.id !== id) return o;
+        const updated = { ...o, ...data, updatedAt: new Date().toISOString() };
+        if (data.items) {
+          updated.totalProducts = data.items.length;
+          updated.totalQuantity = data.items.reduce((sum, it) => sum + (it.quantity || 0), 0);
+          updated.totalAmount = data.items.reduce(
+            (sum, it) =>
+              sum +
+              (it.totalPrice !== undefined
+                ? it.totalPrice
+                : it.price
+                ? it.price * it.quantity
+                : 0),
+            0
+          );
+        }
+        return updated;
+      })
+    );
+  };
+
+  const deleteOrder = (id: string) => {
+    setOrders((prev) => prev.filter((o) => o.id !== id));
+  };
+
+  const updateOrderStatus = (id: string, status: CustomerOrderStatus) => {
+    setOrders((prev) =>
+      prev.map((o) => (o.id === id ? { ...o, status, updatedAt: new Date().toISOString() } : o))
+    );
+  };
+
+  const duplicateOrder = (orderId: string): CustomerOrder | null => {
+    const existing = orders.find((o) => o.id === orderId);
+    if (!existing) return null;
+    return addOrder({
+      customerId: existing.customerId,
+      companyId: existing.companyId,
+      items: existing.items.map((it) => ({
+        ...it,
+        id: undefined,
+        orderId: undefined,
+      })),
+      showPrice: existing.showPrice,
+      notes: existing.notes ? `(Duplicate) ${existing.notes}` : 'Duplicate order',
+    });
+  };
+
   // Backup & Restore
   const resetDemoData = () => {
     setCurrentUser(INITIAL_USER);
@@ -942,6 +1103,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setCustomerPayments(INITIAL_CUSTOMER_PAYMENTS);
     setCompanyPayments(INITIAL_COMPANY_PAYMENTS);
     setStockAdjustments([]);
+    setOrders(INITIAL_CUSTOMER_ORDERS);
     localStorage.clear();
   };
 
@@ -954,6 +1116,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setCustomerPayments([]);
     setCompanyPayments([]);
     setStockAdjustments([]);
+    setOrders([]);
   };
 
   const exportDataJSON = (): string => {
@@ -968,6 +1131,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       customerPayments,
       companyPayments,
       stockAdjustments,
+      orders,
     };
     return JSON.stringify(data, null, 2);
   };
@@ -984,6 +1148,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (Array.isArray(data.customerPayments)) setCustomerPayments(data.customerPayments);
       if (Array.isArray(data.companyPayments)) setCompanyPayments(data.companyPayments);
       if (Array.isArray(data.stockAdjustments)) setStockAdjustments(data.stockAdjustments);
+      if (Array.isArray(data.orders)) setOrders(data.orders);
       return { success: true };
     } catch (err: any) {
       return { success: false, error: err.message || 'Invalid JSON format' };
@@ -1004,6 +1169,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         customerPayments,
         companyPayments,
         stockAdjustments,
+        orders,
         productsWithCompany,
         salesDetailed,
         customerBalances,
@@ -1033,6 +1199,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         recordCompanyPayment,
         deleteCompanyPayment,
         recordPayment,
+        addOrder,
+        updateOrder,
+        deleteOrder,
+        updateOrderStatus,
+        duplicateOrder,
         resetDemoData,
         clearAllData,
         exportDataJSON,

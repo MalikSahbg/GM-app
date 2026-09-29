@@ -218,10 +218,12 @@ export interface DashboardStats {
 
 export type CustomerOrderStatus =
   | 'Pending'
+  | 'Sent'
   | 'Sent to Company'
   | 'Confirmed'
   | 'Processing'
   | 'Dispatched'
+  | 'Completed'
   | 'Delivered'
   | 'Cancelled';
 
@@ -235,33 +237,40 @@ export type CompanyOrderStatus =
   | 'Partially Supplied';
 
 export interface OrderItem {
+  id?: string;
+  orderId?: string;
   productId: string;
   productName: string;
-  companyId: string;
-  companyName: string;
+  companyId?: string;
+  companyName?: string;
   unit: string;
   quantity: number;
   price?: number;
   totalPrice?: number;
+  image?: string;
 }
 
 export interface CustomerOrder {
   id: string;
-  orderNumber: string; // e.g. ORD-000001
+  orderNumber: string; // e.g. ORD-000125
   customerId: string;
   customerName: string;
   customerPhone: string;
   customerWhatsApp?: string;
   customerAddress?: string;
+  companyId?: string | null;
+  companyName?: string | null;
   date: string;
-  salesRepName: string;
+  salesRepName?: string;
   items: OrderItem[];
   totalProducts: number;
   totalQuantity: number;
   totalAmount?: number;
+  showPrice?: boolean;
   status: CustomerOrderStatus;
   notes?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface CompanyOrderItemBreakdown {
