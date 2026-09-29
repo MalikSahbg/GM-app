@@ -10,15 +10,22 @@ tasks.register("assembleDebug") {
         println("Compiling and verifying React Vite applet...")
         val isWindows = System.getProperty("os.name").lowercase().contains("windows")
         val npmCmd = if (isWindows) "npm.cmd" else "npm"
-        val process = ProcessBuilder(npmCmd, "run", "build")
+        val npxCmd = if (isWindows) "npx.cmd" else "npx"
+        val buildProcess = ProcessBuilder(npmCmd, "run", "build")
             .redirectOutput(ProcessBuilder.Redirect.INHERIT)
             .redirectError(ProcessBuilder.Redirect.INHERIT)
             .start()
-        val exitCode = process.waitFor()
-        if (exitCode != 0) {
-            throw GradleException("Vite compilation failed with exit code $exitCode")
+        val buildExit = buildProcess.waitFor()
+        if (buildExit != 0) {
+            throw GradleException("Vite compilation failed with exit code $buildExit")
         }
-        println("Vite compilation succeeded!")
+        println("Vite compilation succeeded! Syncing to Android...")
+        val syncProcess = ProcessBuilder(npxCmd, "cap", "sync", "android")
+            .redirectOutput(ProcessBuilder.Redirect.INHERIT)
+            .redirectError(ProcessBuilder.Redirect.INHERIT)
+            .start()
+        syncProcess.waitFor()
+        println("Capacitor Android sync completed!")
     }
 }
 
