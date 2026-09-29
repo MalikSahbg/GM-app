@@ -423,11 +423,11 @@ export const SettingsView: React.FC = () => {
             Export a full JSON backup of your companies, products, customers, sales history, purchases, and payments. You can restore this backup anytime.
           </p>
 
-          <div className="flex flex-wrap items-center gap-3 pt-2">
+          <div className="flex flex-wrap items-center gap-2.5 pt-2">
             <button
               type="button"
               onClick={handleExport}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs rounded-xl shadow-xs transition-colors"
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs rounded-xl shadow-xs transition-colors w-full sm:w-auto"
             >
               <Download className="h-4 w-4" />
               <span>Export Full Backup (JSON)</span>
@@ -444,7 +444,7 @@ export const SettingsView: React.FC = () => {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl shadow-xs transition-colors"
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl shadow-xs transition-colors w-full sm:w-auto"
             >
               <Upload className="h-4 w-4" />
               <span>Import & Restore Backup</span>
@@ -453,26 +453,11 @@ export const SettingsView: React.FC = () => {
             <button
               type="button"
               onClick={() => {
-                if (window.confirm('Reset app data to default sample demo store?')) {
-                  resetDemoData();
-                  alert('Reset to demo sample data complete!');
-                }
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 font-semibold text-xs rounded-xl border border-amber-200 transition-colors"
-            >
-              <RotateCcw className="h-4 w-4" />
-              <span>Reset to Sample Data</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
                 if (window.confirm('WARNING: Are you sure you want to completely erase all data and start empty?')) {
                   clearAllData();
-                  alert('All data has been cleared!');
                 }
               }}
-              className="flex items-center gap-2 px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-800 font-semibold text-xs rounded-xl border border-rose-200 transition-colors ml-auto"
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-800 font-semibold text-xs rounded-xl border border-rose-200 transition-colors w-full sm:w-auto sm:ml-auto"
             >
               <Trash2 className="h-4 w-4" />
               <span>Clear All Data</span>

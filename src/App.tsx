@@ -13,6 +13,7 @@ import { PurchasesView } from './views/PurchasesView';
 import { PaymentsView } from './views/PaymentsView';
 import { ReportsView } from './views/ReportsView';
 import { SettingsView } from './views/SettingsView';
+import { OrdersView } from './views/OrdersView';
 import { NewSaleModal } from './views/NewSaleModal';
 import { SaleReceiptModal } from './components/SaleReceiptModal';
 import { AddProductModal } from './components/AddProductModal';
@@ -24,10 +25,13 @@ import { CompanyPaymentModal } from './components/CompanyPaymentModal';
 import { DocumentPrintModal, DocumentType } from './components/DocumentPrintModal';
 import { WhatsAppModal } from './components/WhatsAppModal';
 import { AuthModal } from './views/AuthModal';
-import { Sale, Customer, Company } from './types';
+import { CreateOrderModal } from './components/CreateOrderModal';
+import { OrderDetailsModal } from './components/OrderDetailsModal';
+import { OrderPdfModal } from './components/OrderPdfModal';
+import { Sale, Customer, Company, CustomerOrder } from './types';
 
 export const App: React.FC = () => {
-  const { companies, customers } = useApp();
+  const { companies } = useApp();
 
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
 
@@ -59,6 +63,15 @@ export const App: React.FC = () => {
 
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
+  // Orders Modals
+  const [isCreateOrderOpen, setIsCreateOrderOpen] = useState(false);
+  const [orderToDuplicate, setOrderToDuplicate] = useState<CustomerOrder | null>(null);
+  const [activeOrderDetails, setActiveOrderDetails] = useState<CustomerOrder | null>(null);
+  const [activeOrderPdf, setActiveOrderPdf] = useState<{
+    order: CustomerOrder;
+    docType?: 'CUSTOMER' | 'COMPANY';
+  } | null>(null);
+
   // Handlers
   const handleOpenQuickSale = () => {
     setIsSaleModalOpen(true);
@@ -66,6 +79,16 @@ export const App: React.FC = () => {
 
   const handleSaleSuccess = (sale: Sale) => {
     setActiveReceiptSale(sale);
+  };
+
+  const handleOpenCreateOrder = () => {
+    setOrderToDuplicate(null);
+    setIsCreateOrderOpen(true);
+  };
+
+  const handleDuplicateOrder = (order: CustomerOrder) => {
+    setOrderToDuplicate(order);
+    setIsCreateOrderOpen(true);
   };
 
   const handleOpenAddProduct = () => {
@@ -114,7 +137,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100/70 text-slate-900 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-100/70 text-slate-900 flex flex-col font-sans w-full max-w-full overflow-x-hidden">
       {/* Top Header */}
       <Header
         currentTab={currentTab}
@@ -138,16 +161,25 @@ export const App: React.FC = () => {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 overflow-x-hidden">
         {currentTab === 'dashboard' && (
           <DashboardView
             onSelectTab={setCurrentTab}
             onOpenQuickSale={handleOpenQuickSale}
-            onOpenCreateOrder={handleOpenQuickSale}
+            onOpenCreateOrder={handleOpenCreateOrder}
             onOpenAddProduct={handleOpenAddProduct}
             onOpenAddCompany={handleOpenAddCompany}
             onOpenAddCustomer={handleOpenAddCustomer}
             onOpenRecordPayment={handleOpenCustomerPayment}
+          />
+        )}
+
+        {currentTab === 'orders' && (
+          <OrdersView
+            onOpenCreateOrder={handleOpenCreateOrder}
+            onOpenOrderDetails={(order) => setActiveOrderDetails(order)}
+            onOpenOrderPdf={(order, docType) => setActiveOrderPdf({ order, docType })}
+            onDuplicateOrder={handleDuplicateOrder}
           />
         )}
 
@@ -248,6 +280,31 @@ export const App: React.FC = () => {
         onClose={() => setActiveReceiptSale(null)}
       />
 
+      <CreateOrderModal
+        isOpen={isCreateOrderOpen}
+        onClose={() => {
+          setIsCreateOrderOpen(false);
+          setOrderToDuplicate(null);
+        }}
+        initialOrderToDuplicate={orderToDuplicate}
+        onOpenPdf={(order, docType) => setActiveOrderPdf({ order, docType })}
+        onOpenDetails={(order) => setActiveOrderDetails(order)}
+      />
+
+      <OrderDetailsModal
+        isOpen={activeOrderDetails !== null}
+        order={activeOrderDetails}
+        onClose={() => setActiveOrderDetails(null)}
+        onOpenPdf={(order, docType) => setActiveOrderPdf({ order, docType })}
+      />
+
+      <OrderPdfModal
+        isOpen={activeOrderPdf !== null}
+        order={activeOrderPdf?.order || null}
+        docType={activeOrderPdf?.docType || 'CUSTOMER'}
+        onClose={() => setActiveOrderPdf(null)}
+      />
+
       <AddProductModal
         isOpen={isAddProductOpen}
         productIdToEdit={productToEditId}
@@ -323,5 +380,3 @@ export const App: React.FC = () => {
   );
 };
 export default App;
-
-

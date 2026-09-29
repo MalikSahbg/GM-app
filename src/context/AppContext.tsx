@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode, useRef } from 'react';
 import {
   User,
   Company,
@@ -34,6 +34,85 @@ import {
   INITIAL_ADJUSTMENTS,
   INITIAL_CUSTOMER_ORDERS,
 } from '../data/initialData';
+
+export const normalizeEmail = (email: string): string => {
+  return (email || '').trim().toLowerCase();
+};
+
+export interface UserAccount {
+  id: string;
+  name: string;
+  email: string;
+  storeName: string;
+  createdAt: string;
+}
+
+export interface UserDataBundle {
+  user: User;
+  settings: BusinessSettings;
+  companies: Company[];
+  products: Product[];
+  customers: Customer[];
+  sales: Sale[];
+  purchases: Purchase[];
+  customerPayments: CustomerPayment[];
+  companyPayments: CompanyPayment[];
+  stockAdjustments: StockAdjustment[];
+  orders: CustomerOrder[];
+}
+
+const STORAGE_ACCOUNTS_KEY = 'salesapp_accounts';
+const STORAGE_ACTIVE_EMAIL_KEY = 'salesapp_active_email';
+
+export const getStoredAccounts = (): UserAccount[] => {
+  try {
+    const raw = localStorage.getItem(STORAGE_ACCOUNTS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+export const saveStoredAccount = (account: UserAccount) => {
+  try {
+    const accounts = getStoredAccounts();
+    const normEmail = normalizeEmail(account.email);
+    const existingIdx = accounts.findIndex((a) => normalizeEmail(a.email) === normEmail);
+    if (existingIdx >= 0) {
+      accounts[existingIdx] = account;
+    } else {
+      accounts.push(account);
+    }
+    localStorage.setItem(STORAGE_ACCOUNTS_KEY, JSON.stringify(accounts));
+  } catch (e) {
+    console.error('Failed to save account:', e);
+  }
+};
+
+export const loadUserBundle = (email: string): UserDataBundle | null => {
+  try {
+    const normEmail = normalizeEmail(email);
+    if (!normEmail) return null;
+    const raw = localStorage.getItem(`salesapp_user_data_${normEmail}`);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return parsed;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+export const saveUserBundle = (email: string, bundle: UserDataBundle) => {
+  try {
+    const normEmail = normalizeEmail(email);
+    if (!normEmail) return;
+    localStorage.setItem(`salesapp_user_data_${normEmail}`, JSON.stringify(bundle));
+  } catch (e) {
+    console.error('Failed to save user bundle:', e);
+  }
+};
 
 interface AppContextType {
   currentUser: User | null;
@@ -155,242 +234,123 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const STORAGE_KEYS = {
-  USER: 'salesapp_user',
-  SETTINGS: 'salesapp_settings',
-  COMPANIES: 'salesapp_companies',
-  PRODUCTS: 'salesapp_products',
-  CUSTOMERS: 'salesapp_customers',
-  SALES: 'salesapp_sales',
-  PURCHASES: 'salesapp_purchases',
-  CUSTOMER_PAYMENTS: 'salesapp_cust_payments',
-  COMPANY_PAYMENTS: 'salesapp_comp_payments',
-  ADJUSTMENTS: 'salesapp_adjustments',
-  ORDERS: 'salesapp_orders',
-  LEGACY_PAYMENTS: 'salesapp_payments',
-};
-
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // 1. Current user
-  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+  // Determine initial state based on active logged-in email
+  const initialData = useMemo(() => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEYS.USER);
-      return stored ? JSON.parse(stored) : INITIAL_USER;
-    } catch {
-      return INITIAL_USER;
+      const activeEmail = normalizeEmail(localStorage.getItem(STORAGE_ACTIVE_EMAIL_KEY) || '');
+      if (activeEmail) {
+        const bundle = loadUserBundle(activeEmail);
+        if (bundle) {
+          return bundle;
+        }
+      }
+    } catch (e) {
+      console.error('Error loading initial active user bundle:', e);
     }
-  });
+    return null;
+  }, []);
+
+  // 1. Current user
+  const [currentUser, setCurrentUser] = useState<User | null>(initialData?.user || INITIAL_USER);
 
   // 2. Business Settings
-  const [settings, setSettings] = useState<BusinessSettings>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-      if (stored) {
-        return { ...INITIAL_SETTINGS, ...JSON.parse(stored) };
-      }
-      return INITIAL_SETTINGS;
-    } catch {
-      return INITIAL_SETTINGS;
-    }
-  });
+  const [settings, setSettings] = useState<BusinessSettings>(initialData?.settings || INITIAL_SETTINGS);
 
   // 3. Companies
-  const [companies, setCompanies] = useState<Company[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEYS.COMPANIES);
-      return stored ? JSON.parse(stored) : INITIAL_COMPANIES;
-    } catch {
-      return INITIAL_COMPANIES;
-    }
-  });
+  const [companies, setCompanies] = useState<Company[]>(initialData?.companies || INITIAL_COMPANIES);
 
-  // 4. Products (ensure migration for purchasePrice and unit)
+  // 4. Products
   const [products, setProducts] = useState<Product[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
-      const parsed: Product[] = stored ? JSON.parse(stored) : INITIAL_PRODUCTS;
-      return parsed.map((p) => ({
-        ...p,
-        purchasePrice: p.purchasePrice !== undefined ? p.purchasePrice : Math.round(p.price * 0.78),
-        unit: p.unit || 'pcs',
-        minStockThreshold: p.minStockThreshold !== undefined ? p.minStockThreshold : 5,
-      }));
-    } catch {
-      return INITIAL_PRODUCTS;
-    }
+    const raw = initialData?.products || INITIAL_PRODUCTS;
+    return raw.map((p) => ({
+      ...p,
+      purchasePrice: p.purchasePrice !== undefined ? p.purchasePrice : Math.round(p.price * 0.78),
+      unit: p.unit || 'pcs',
+      minStockThreshold: p.minStockThreshold !== undefined ? p.minStockThreshold : 5,
+    }));
   });
 
   // 5. Customers
   const [customers, setCustomers] = useState<Customer[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEYS.CUSTOMERS);
-      const parsed: Customer[] = stored ? JSON.parse(stored) : INITIAL_CUSTOMERS;
-      return parsed.map((c) => ({
-        ...c,
-        whatsapp: c.whatsapp || c.phone,
-      }));
-    } catch {
-      return INITIAL_CUSTOMERS;
-    }
+    const raw = initialData?.customers || INITIAL_CUSTOMERS;
+    return raw.map((c) => ({
+      ...c,
+      whatsapp: c.whatsapp || c.phone,
+    }));
   });
 
-  // 6. Sales (migrate legacy single-item sales to multi-item structure)
-  const [sales, setSales] = useState<Sale[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEYS.SALES);
-      const parsed = stored ? JSON.parse(stored) : INITIAL_SALES;
-      return parsed.map((s: any, idx: number) => {
-        if (!s.items || s.items.length === 0) {
-          const itemPrice = s.unitPrice || (s.quantity ? s.totalPrice / s.quantity : s.totalPrice);
-          const cost = Math.round(itemPrice * 0.78);
-          const qty = s.quantity || 1;
-          const items: SaleItem[] = [
-            {
-              productId: s.productId || 'legacy-item',
-              productName: s.productName || 'General Merchandise',
-              unit: 'pcs',
-              purchasePrice: cost,
-              unitPrice: itemPrice,
-              quantity: qty,
-              discount: 0,
-              totalPrice: s.totalPrice,
-              itemProfit: s.totalPrice - cost * qty,
-            },
-          ];
-          return {
-            ...s,
-            invoiceNumber: s.invoiceNumber || `INV-${1000 + idx + 1}`,
-            items,
-            subtotal: s.totalPrice,
-            totalDiscount: 0,
-            paymentMethod: s.paymentMethod || (s.balanceDue === 0 ? 'Cash' : 'Udhaar'),
-            totalProfit: s.totalPrice - cost * qty,
-          };
-        }
-        return s;
-      });
-    } catch {
-      return INITIAL_SALES;
-    }
-  });
+  // 6. Sales
+  const [sales, setSales] = useState<Sale[]>(initialData?.sales || INITIAL_SALES);
 
   // 7. Purchases
-  const [purchases, setPurchases] = useState<Purchase[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEYS.PURCHASES);
-      return stored ? JSON.parse(stored) : INITIAL_PURCHASES;
-    } catch {
-      return INITIAL_PURCHASES;
-    }
-  });
+  const [purchases, setPurchases] = useState<Purchase[]>(initialData?.purchases || INITIAL_PURCHASES);
 
   // 8. Customer Payments
-  const [customerPayments, setCustomerPayments] = useState<CustomerPayment[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEYS.CUSTOMER_PAYMENTS);
-      if (stored) return JSON.parse(stored);
-      // Migrate from legacy payments key if available
-      const legacy = localStorage.getItem(STORAGE_KEYS.LEGACY_PAYMENTS);
-      if (legacy) {
-        const parsed = JSON.parse(legacy);
-        return parsed.map((p: any) => ({
-          id: p.id || 'pay-' + Date.now(),
-          customerId: p.customerId,
-          amount: p.amount,
-          date: p.date,
-          paymentMethod: 'Cash',
-          note: p.note,
-        }));
-      }
-      return INITIAL_CUSTOMER_PAYMENTS;
-    } catch {
-      return INITIAL_CUSTOMER_PAYMENTS;
-    }
-  });
+  const [customerPayments, setCustomerPayments] = useState<CustomerPayment[]>(
+    initialData?.customerPayments || INITIAL_CUSTOMER_PAYMENTS
+  );
 
   // 9. Company Payments
-  const [companyPayments, setCompanyPayments] = useState<CompanyPayment[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEYS.COMPANY_PAYMENTS);
-      return stored ? JSON.parse(stored) : INITIAL_COMPANY_PAYMENTS;
-    } catch {
-      return INITIAL_COMPANY_PAYMENTS;
-    }
-  });
+  const [companyPayments, setCompanyPayments] = useState<CompanyPayment[]>(
+    initialData?.companyPayments || INITIAL_COMPANY_PAYMENTS
+  );
 
   // 10. Stock Adjustments
-  const [stockAdjustments, setStockAdjustments] = useState<StockAdjustment[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEYS.ADJUSTMENTS);
-      return stored ? JSON.parse(stored) : INITIAL_ADJUSTMENTS;
-    } catch {
-      return INITIAL_ADJUSTMENTS;
-    }
-  });
+  const [stockAdjustments, setStockAdjustments] = useState<StockAdjustment[]>(
+    initialData?.stockAdjustments || INITIAL_ADJUSTMENTS
+  );
 
   // 11. Customer & Company Orders
-  const [orders, setOrders] = useState<CustomerOrder[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEYS.ORDERS);
-      return stored ? JSON.parse(stored) : INITIAL_CUSTOMER_ORDERS;
-    } catch {
-      return INITIAL_CUSTOMER_ORDERS;
-    }
-  });
+  const [orders, setOrders] = useState<CustomerOrder[]>(
+    initialData?.orders || INITIAL_CUSTOMER_ORDERS
+  );
 
-  // Save to localStorage
-  useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem(STORAGE_KEYS.USER);
-    }
-  }, [currentUser]);
+  // Flag to avoid saving during initial bundle switch
+  const isSwitchingAccountRef = useRef(false);
 
+  // Auto-persist active user bundle on any state change
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
+    if (isSwitchingAccountRef.current) return;
+    if (currentUser && currentUser.email) {
+      const normEmail = normalizeEmail(currentUser.email);
+      const bundle: UserDataBundle = {
+        user: currentUser,
+        settings,
+        companies,
+        products,
+        customers,
+        sales,
+        purchases,
+        customerPayments,
+        companyPayments,
+        stockAdjustments,
+        orders,
+      };
+      saveUserBundle(normEmail, bundle);
+    }
+  }, [
+    currentUser,
+    settings,
+    companies,
+    products,
+    customers,
+    sales,
+    purchases,
+    customerPayments,
+    companyPayments,
+    stockAdjustments,
+    orders,
+  ]);
+
+  // Sync theme
+  useEffect(() => {
     if (settings.theme === 'dark') {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
-  }, [settings]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.COMPANIES, JSON.stringify(companies));
-  }, [companies]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
-  }, [products]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers));
-  }, [customers]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.SALES, JSON.stringify(sales));
-  }, [sales]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.PURCHASES, JSON.stringify(purchases));
-  }, [purchases]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.CUSTOMER_PAYMENTS, JSON.stringify(customerPayments));
-  }, [customerPayments]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.COMPANY_PAYMENTS, JSON.stringify(companyPayments));
-  }, [companyPayments]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.ADJUSTMENTS, JSON.stringify(stockAdjustments));
-  }, [stockAdjustments]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders));
-  }, [orders]);
+  }, [settings.theme]);
 
   // Derived: Products with Company Name
   const productsWithCompany = useMemo<ProductWithCompany[]>(() => {
@@ -401,112 +361,114 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }));
   }, [products, companies]);
 
-  // Derived: Detailed Sales
+  // Derived: Detailed Sales with Customer and Products info
   const salesDetailed = useMemo<SaleDetail[]>(() => {
     const custMap = new Map(customers.map((c) => [c.id, c]));
-    const prodMap = new Map(productsWithCompany.map((p) => [p.id, p]));
+    const compMap = new Map(companies.map((c) => [c.id, c.name]));
 
     return sales
       .map((s) => {
         const cust = custMap.get(s.customerId);
-        // Fallback for single item legacy display
-        const firstItem = s.items?.[0];
-        const prod = firstItem ? prodMap.get(firstItem.productId) : (s.productId ? prodMap.get(s.productId) : undefined);
+        let itemsCount = 1;
+        let compName = '';
+
+        if (s.items && s.items.length > 0) {
+          itemsCount = s.items.reduce((sum, it) => sum + it.quantity, 0);
+          const firstComp = s.items[0].companyName;
+          compName = firstComp || '';
+        } else if (s.companyId) {
+          compName = compMap.get(s.companyId) || '';
+        }
 
         return {
           ...s,
-          customerName: cust?.name || 'Walk-in Customer',
-          customerPhone: cust?.phone || '',
-          customerWhatsApp: cust?.whatsapp || cust?.phone || '',
-          customerAddress: cust?.address,
-          productName: s.items && s.items.length > 1
-            ? `${s.items[0].productName} + ${s.items.length - 1} more items`
-            : (s.items?.[0]?.productName || prod?.name || 'General Merchandise'),
-          companyName: s.items?.[0]?.companyName || prod?.companyName,
+          customerName: cust ? cust.name : 'Walk-in Customer',
+          customerPhone: cust ? cust.phone : '',
+          customerWhatsApp: cust ? cust.whatsapp : '',
+          companyName: compName,
+          itemsCount,
         };
       })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [sales, customers, productsWithCompany]);
+  }, [sales, customers, companies]);
 
-  // Derived: Customer Balances & Khata
+  // Derived: Customer Balances Ledger
   const customerBalances = useMemo<CustomerBalance[]>(() => {
-    return customers.map((cust) => {
-      const custSales = sales.filter((s) => s.customerId === cust.id);
-      const custPayments = customerPayments.filter((p) => p.customerId === cust.id);
-
+    return customers.map((c) => {
+      const custSales = sales.filter((s) => s.customerId === c.id);
       const totalPurchased = custSales.reduce((acc, s) => acc + s.totalPrice, 0);
-      const totalPaidOnSales = custSales.reduce((acc, s) => acc + s.paidAmount, 0);
-      const totalAdditionalPayments = custPayments.reduce((acc, p) => acc + p.amount, 0);
-      const totalPaid = totalPaidOnSales + totalAdditionalPayments;
-
+      const paidViaSales = custSales.reduce((acc, s) => acc + s.paidAmount, 0);
+      const custDirectPayments = customerPayments.filter((p) => p.customerId === c.id);
+      const totalDirectPaid = custDirectPayments.reduce((acc, p) => acc + p.amount, 0);
+      const totalPaid = paidViaSales + totalDirectPaid;
       const outstandingBalance = Math.max(0, totalPurchased - totalPaid);
 
-      const sortedSales = [...custSales].sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-      );
-      const lastSaleDate = sortedSales[0]?.date;
+      const allDates = [
+        ...custSales.map((s) => s.date),
+        ...custDirectPayments.map((p) => p.date),
+      ].sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+
+      const lastSaleDate = allDates.length > 0 ? allDates[0] : undefined;
 
       return {
-        customerId: cust.id,
-        customerName: cust.name,
-        customerPhone: cust.phone,
-        customerWhatsApp: cust.whatsapp || cust.phone,
-        totalSales: custSales.length,
+        customerId: c.id,
+        customerName: c.name,
+        customerPhone: c.phone,
         totalPurchased,
         totalPaid,
         outstandingBalance,
         lastSaleDate,
-        status: outstandingBalance > 0 ? 'UNPAID' : 'PAID',
+        totalSales: custSales.length,
       };
     });
   }, [customers, sales, customerPayments]);
 
-  // Derived: Company Balances & Khata (Company purchases, payments, remaining payable)
+  // Derived: Company Balances Ledger
   const companyBalances = useMemo<CompanyBalance[]>(() => {
-    return companies.map((comp) => {
-      const compPurchases = purchases.filter((p) => p.companyId === comp.id);
-      const compPayments = companyPayments.filter((p) => p.companyId === comp.id);
-      const compProducts = products.filter((p) => p.companyId === comp.id);
-
+    return companies.map((c) => {
+      const compPurchases = purchases.filter((p) => p.companyId === c.id);
       const totalPurchasedAmount = compPurchases.reduce((acc, p) => acc + p.totalAmount, 0);
-      const paidOnPurchases = compPurchases.reduce((acc, p) => acc + p.paidAmount, 0);
-      const directPayments = compPayments.reduce((acc, p) => acc + p.amount, 0);
-      const totalPaidAmount = paidOnPurchases + directPayments;
-
+      const paidViaPurchases = compPurchases.reduce((acc, p) => acc + p.paidAmount, 0);
+      const compDirectPayments = companyPayments.filter((p) => p.companyId === c.id);
+      const totalDirectPaid = compDirectPayments.reduce((acc, p) => acc + p.amount, 0);
+      const totalPaidAmount = paidViaPurchases + totalDirectPaid;
       const remainingPayable = Math.max(0, totalPurchasedAmount - totalPaidAmount);
 
-      const sortedPurchases = [...compPurchases].sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-      );
-      const lastPurchaseDate = sortedPurchases[0]?.date;
+      const allDates = [
+        ...compPurchases.map((p) => p.date),
+        ...compDirectPayments.map((p) => p.date),
+      ].sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+
+      const lastPurchaseDate = allDates.length > 0 ? allDates[0] : undefined;
 
       return {
-        companyId: comp.id,
-        companyName: comp.name,
-        contactPhone: comp.contactPhone,
-        totalPurchasesCount: compPurchases.length,
+        companyId: c.id,
+        companyName: c.name,
+        contactPerson: c.contactPerson,
+        contactPhone: c.contactPhone,
         totalPurchasedAmount,
         totalPaidAmount,
         remainingPayable,
-        productsCount: compProducts.length,
         lastPurchaseDate,
+        totalPurchasesCount: compPurchases.length,
       };
     });
-  }, [companies, purchases, companyPayments, products]);
+  }, [companies, purchases, companyPayments]);
 
-  // Derived: Dashboard Stats
+  // Derived: Overall Business Statistics
   const stats = useMemo<DashboardStats>(() => {
     const todayStr = new Date().toISOString().slice(0, 10);
     const todaySales = sales.filter((s) => s.date.slice(0, 10) === todayStr);
-
-    const todaySalesCount = todaySales.length;
     const todaySalesAmount = todaySales.reduce((acc, s) => acc + s.totalPrice, 0);
-    const todayProfit = todaySales.reduce((acc, s) => acc + (s.totalProfit || 0), 0);
+    const todaySalesCount = todaySales.length;
 
-    const totalRevenue =
-      sales.reduce((acc, s) => acc + s.paidAmount, 0) +
-      customerPayments.reduce((acc, p) => acc + p.amount, 0);
+    const todayProfit = todaySales.reduce((acc, s) => {
+      if (s.totalProfit !== undefined) return acc + s.totalProfit;
+      const cost = Math.round(s.totalPrice * 0.78);
+      return acc + (s.totalPrice - cost);
+    }, 0);
 
+    const totalRevenue = sales.reduce((acc, s) => acc + s.totalPrice, 0);
     const totalUdhaar = customerBalances.reduce((acc, b) => acc + b.outstandingBalance, 0);
     const totalPayable = companyBalances.reduce((acc, b) => acc + b.remainingPayable, 0);
     const pendingUdhaarCustomers = customerBalances.filter((b) => b.outstandingBalance > 0).length;
@@ -517,8 +479,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const totalPurchasesAmount = purchases.reduce((acc, p) => acc + p.totalAmount, 0);
 
-    // Order metrics
-    const todayOrders = orders.filter((o) => o.date.slice(0, 10) === todayStr);
+    const todayOrders = orders.filter((o) => o.date && o.date.slice(0, 10) === todayStr);
     const todayOrdersCount = todayOrders.length;
     const todayOrdersQuantity = todayOrders.reduce((acc, o) => acc + o.totalQuantity, 0);
     const pendingOrdersCount = orders.filter((o) => o.status === 'Pending').length;
@@ -544,43 +505,154 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       todayOrdersQuantity,
       companiesWithPendingOrders,
     };
-  }, [sales, customerPayments, customerBalances, companyBalances, products, customers, companies, purchases, orders]);
+  }, [sales, customerBalances, companyBalances, products, customers, companies, purchases, orders]);
 
   // Business settings update
   const updateSettings = (newSettings: Partial<BusinessSettings>) => {
     setSettings((prev) => ({ ...prev, ...newSettings }));
   };
 
-  // Auth
-  const login = (email: string, _pass: string) => {
-    const user: User = {
-      id: 'usr-' + Date.now(),
-      name: email.split('@')[0] || 'Store Owner',
-      email,
-      storeName: settings.businessName || 'Malik General & Wholesale Mart',
-      createdAt: new Date().toISOString(),
-    };
-    setCurrentUser(user);
-    return true;
+  // Helper to load bundle into state cleanly
+  const applyBundle = (bundle: UserDataBundle) => {
+    isSwitchingAccountRef.current = true;
+    setCurrentUser(bundle.user);
+    setSettings(bundle.settings || INITIAL_SETTINGS);
+    setCompanies(bundle.companies || []);
+    setProducts(bundle.products || []);
+    setCustomers(bundle.customers || []);
+    setSales(bundle.sales || []);
+    setPurchases(bundle.purchases || []);
+    setCustomerPayments(bundle.customerPayments || []);
+    setCompanyPayments(bundle.companyPayments || []);
+    setStockAdjustments(bundle.stockAdjustments || []);
+    setOrders(bundle.orders || []);
+    setTimeout(() => {
+      isSwitchingAccountRef.current = false;
+    }, 50);
   };
 
-  const signup = (name: string, email: string, _pass: string, storeName: string) => {
-    const user: User = {
-      id: 'usr-' + Date.now(),
-      name,
-      email,
-      storeName: storeName || 'My Retail Store',
-      createdAt: new Date().toISOString(),
-    };
-    setCurrentUser(user);
-    if (storeName) {
-      updateSettings({ businessName: storeName });
-    }
-    return true;
-  };
-
-  const logout = () => {
+  // Helper to clear state to clean empty
+  const applyEmptyState = () => {
+    isSwitchingAccountRef.current = true;
     setCurrentUser(null);
+    setSettings(INITIAL_SETTINGS);
+    setCompanies([]);
+    setProducts([]);
+    setCustomers([]);
+    setSales([]);
+    setPurchases([]);
+    setCustomerPayments([]);
+    setCompanyPayments([]);
+    setStockAdjustments([]);
+    setOrders([]);
+    setTimeout(() => {
+      isSwitchingAccountRef.current = false;
+    }, 50);
+  };
+
+  // Auth: Login
+  const login = (email: string, _pass: string): boolean => {
+    const normEmail = normalizeEmail(email);
+    if (!normEmail) return false;
+
+    // Check if user has an existing saved bundle
+    const existingBundle = loadUserBundle(normEmail);
+    if (existingBundle) {
+      // Restore the exact previous data - DO NOT RESET
+      applyBundle(existingBundle);
+      localStorage.setItem(STORAGE_ACTIVE_EMAIL_KEY, normEmail);
+      return true;
+    }
+
+    // Check if account registered without bundle
+    const accounts = getStoredAccounts();
+    const existingAcc = accounts.find((a) => normalizeEmail(a.email) === normEmail);
+
+    const user: User = {
+      id: existingAcc ? existingAcc.id : 'usr-' + Date.now(),
+      name: existingAcc ? existingAcc.name : normEmail.split('@')[0] || 'Store Owner',
+      email: normEmail,
+      storeName: existingAcc ? existingAcc.storeName : 'My Store',
+      createdAt: existingAcc ? existingAcc.createdAt : new Date().toISOString(),
+    };
+
+    const newBundle: UserDataBundle = {
+      user,
+      settings: {
+        ...INITIAL_SETTINGS,
+        businessName: user.storeName,
+        email: normEmail,
+      },
+      companies: [],
+      products: [],
+      customers: [],
+      sales: [],
+      purchases: [],
+      customerPayments: [],
+      companyPayments: [],
+      stockAdjustments: [],
+      orders: [],
+    };
+
+    saveUserBundle(normEmail, newBundle);
+    saveStoredAccount(user);
+    applyBundle(newBundle);
+    localStorage.setItem(STORAGE_ACTIVE_EMAIL_KEY, normEmail);
+    return true;
+  };
+
+  // Auth: Signup
+  const signup = (name: string, email: string, _pass: string, storeName: string): boolean => {
+    const normEmail = normalizeEmail(email);
+    if (!normEmail) return false;
+
+    // If an existing bundle exists for this email, RESTORE it without resetting
+    const existingBundle = loadUserBundle(normEmail);
+    if (existingBundle) {
+      applyBundle(existingBundle);
+      localStorage.setItem(STORAGE_ACTIVE_EMAIL_KEY, normEmail);
+      return true;
+    }
+
+    // Create fresh account
+    const cleanStoreName = storeName.trim() || 'My Store';
+    const user: User = {
+      id: 'usr-' + Date.now(),
+      name: name.trim() || normEmail.split('@')[0] || 'Store Owner',
+      email: normEmail,
+      storeName: cleanStoreName,
+      createdAt: new Date().toISOString(),
+    };
+
+    const newBundle: UserDataBundle = {
+      user,
+      settings: {
+        ...INITIAL_SETTINGS,
+        businessName: cleanStoreName,
+        email: normEmail,
+      },
+      companies: [],
+      products: [],
+      customers: [],
+      sales: [],
+      purchases: [],
+      customerPayments: [],
+      companyPayments: [],
+      stockAdjustments: [],
+      orders: [],
+    };
+
+    saveUserBundle(normEmail, newBundle);
+    saveStoredAccount(user);
+    applyBundle(newBundle);
+    localStorage.setItem(STORAGE_ACTIVE_EMAIL_KEY, normEmail);
+    return true;
+  };
+
+  // Auth: Logout
+  const logout = () => {
+    localStorage.removeItem(STORAGE_ACTIVE_EMAIL_KEY);
+    applyEmptyState();
   };
 
   // Company operations
@@ -600,19 +672,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     );
   };
 
-  const deleteCompany = (id: string) => {
-    const hasProducts = products.some((p) => p.companyId === id);
-    if (hasProducts) {
+  const deleteCompany = (id: string): { success: boolean; error?: string } => {
+    const associatedProducts = products.filter((p) => p.companyId === id);
+    if (associatedProducts.length > 0) {
       return {
         success: false,
-        error: 'Cannot delete company with active catalog products. Please delete or reassign products first.',
+        error: `Cannot delete company. There are ${associatedProducts.length} products attached to this supplier.`,
       };
     }
-    const hasPurchases = purchases.some((p) => p.companyId === id);
-    if (hasPurchases) {
+    const associatedPurchases = purchases.filter((p) => p.companyId === id);
+    if (associatedPurchases.length > 0) {
       return {
         success: false,
-        error: 'Cannot delete company with purchase invoice history. Records must be preserved for accounting.',
+        error: `Cannot delete company with recorded purchase bills (${associatedPurchases.length} bills).`,
       };
     }
     setCompanies((prev) => prev.filter((c) => c.id !== id));
@@ -621,16 +693,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Product operations
   const addProduct = (data: Omit<Product, 'id' | 'createdAt'>): Product => {
-    const newProd: Product = {
+    const newProduct: Product = {
       ...data,
       id: 'prod-' + Date.now(),
-      minStockThreshold: data.minStockThreshold !== undefined ? data.minStockThreshold : 5,
-      purchasePrice: data.purchasePrice !== undefined ? data.purchasePrice : Math.round(data.price * 0.78),
-      unit: data.unit || 'pcs',
       createdAt: new Date().toISOString(),
+      purchasePrice: data.purchasePrice !== undefined ? data.purchasePrice : Math.round(data.price * 0.78),
+      minStockThreshold: data.minStockThreshold !== undefined ? data.minStockThreshold : 5,
+      unit: data.unit || 'pcs',
     };
-    setProducts((prev) => [newProd, ...prev]);
-    return newProd;
+    setProducts((prev) => [newProduct, ...prev]);
+    return newProduct;
   };
 
   const updateProduct = (id: string, data: Partial<Omit<Product, 'id' | 'createdAt'>>) => {
@@ -639,14 +711,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     );
   };
 
-  const deleteProduct = (id: string) => {
-    const hasSales = sales.some((s) =>
-      s.items ? s.items.some((item) => item.productId === id) : s.productId === id
+  const deleteProduct = (id: string): { success: boolean; error?: string } => {
+    const inSales = sales.some(
+      (s) => s.productId === id || (s.items && s.items.some((it) => it.productId === id))
     );
-    if (hasSales) {
+    if (inSales) {
       return {
         success: false,
-        error: 'Product has past sales history. To prevent ledger inconsistency, set stock to 0 instead of deleting.',
+        error: 'Cannot delete product that has existing sales transactions in ledger.',
       };
     }
     setProducts((prev) => prev.filter((p) => p.id !== id));
@@ -656,36 +728,38 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const adjustStock = (
     id: string,
     deltaQuantity: number,
-    reason: string = 'Stock Adjustment',
-    type: StockAdjustment['type'] = deltaQuantity >= 0 ? 'ADD' : 'DEDUCT'
+    reason?: string,
+    type: StockAdjustment['type'] = 'CORRECTION'
   ) => {
-    const target = products.find((p) => p.id === id);
-    if (!target) return;
+    const prod = products.find((p) => p.id === id);
+    if (!prod) return;
 
-    const newQty = Math.max(0, target.stockQuantity + deltaQuantity);
+    const previousQuantity = prod.stockQuantity;
+    const newQuantity = Math.max(0, previousQuantity + deltaQuantity);
+
     setProducts((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, stockQuantity: newQty } : p))
+      prev.map((p) => (p.id === id ? { ...p, stockQuantity: newQuantity } : p))
     );
 
-    // Record adjustment entry
     const adjustment: StockAdjustment = {
       id: 'adj-' + Date.now(),
       productId: id,
-      productName: target.name,
-      type,
-      quantity: Math.abs(deltaQuantity),
-      reason,
+      productName: prod.name,
+      previousQuantity,
+      newQuantity,
+      adjustmentQuantity: deltaQuantity,
+      reason: reason || 'Manual stock adjustment',
       date: new Date().toISOString(),
+      type,
     };
     setStockAdjustments((prev) => [adjustment, ...prev]);
   };
 
-  const setStockQuantity = (id: string, newQuantity: number, reason: string = 'Manual Count Correction') => {
-    const target = products.find((p) => p.id === id);
-    if (!target) return;
-
-    const diff = newQuantity - target.stockQuantity;
-    adjustStock(id, diff, reason, diff >= 0 ? 'ADD' : 'DEDUCT');
+  const setStockQuantity = (id: string, newQuantity: number, reason?: string) => {
+    const prod = products.find((p) => p.id === id);
+    if (!prod) return;
+    const delta = newQuantity - prod.stockQuantity;
+    adjustStock(id, delta, reason || 'Stock set directly', 'AUDIT');
   };
 
   // Customer operations
@@ -693,8 +767,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const newCust: Customer = {
       ...data,
       id: 'cust-' + Date.now(),
-      whatsapp: data.whatsapp || data.phone,
       createdAt: new Date().toISOString(),
+      whatsapp: data.whatsapp || data.phone,
     };
     setCustomers((prev) => [newCust, ...prev]);
     return newCust;
@@ -702,166 +776,176 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const updateCustomer = (id: string, data: Partial<Omit<Customer, 'id' | 'createdAt'>>) => {
     setCustomers((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, ...data, whatsapp: data.whatsapp || data.phone || c.whatsapp } : c))
+      prev.map((c) => (c.id === id ? { ...c, ...data, whatsapp: data.whatsapp || c.whatsapp } : c))
     );
   };
 
-  const deleteCustomer = (id: string) => {
-    const hasSales = sales.some((s) => s.customerId === id);
-    if (hasSales) {
+  const deleteCustomer = (id: string): { success: boolean; error?: string } => {
+    const custSales = sales.filter((s) => s.customerId === id);
+    if (custSales.length > 0) {
       return {
         success: false,
-        error: 'Customer has recorded sales records and Khata ledger. Deletion is blocked to preserve financial data.',
+        error: `Cannot delete customer with ${custSales.length} recorded sales transactions.`,
+      };
+    }
+    const custBalance = customerBalances.find((b) => b.customerId === id);
+    if (custBalance && custBalance.outstandingBalance > 0) {
+      return {
+        success: false,
+        error: `Customer has outstanding Udhaar balance of ${settings.currency} ${custBalance.outstandingBalance}. Settle payment first.`,
       };
     }
     setCustomers((prev) => prev.filter((c) => c.id !== id));
     return { success: true };
   };
 
-  // Professional Multi-Item Sale
-  const recordMultiItemSale = ({
-    customerId,
-    items,
-    paidAmount,
-    paymentMethod = 'Cash',
-    notes,
-  }: {
+  // Multi-item Sale Recording
+  const recordMultiItemSale = (data: {
     customerId: string;
     items: SaleItem[];
     paidAmount: number;
     paymentMethod?: Sale['paymentMethod'];
     notes?: string;
   }): { success: boolean; error?: string; sale?: Sale } => {
-    if (!customerId) return { success: false, error: 'Please select a customer.' };
-    if (!items || items.length === 0) return { success: false, error: 'Invoice must contain at least 1 item.' };
+    const customer = customers.find((c) => c.id === data.customerId);
+    if (!customer) {
+      return { success: false, error: 'Customer not found' };
+    }
+    if (!data.items || data.items.length === 0) {
+      return { success: false, error: 'Cannot record sale with no items' };
+    }
 
-    // Stock verification
-    for (const item of items) {
+    // Verify stock availability
+    for (const item of data.items) {
       const prod = products.find((p) => p.id === item.productId);
       if (!prod) {
         return { success: false, error: `Product "${item.productName}" not found.` };
       }
-      if (item.quantity <= 0) {
-        return { success: false, error: `Quantity for "${item.productName}" must be at least 1.` };
-      }
-      if (item.quantity > prod.stockQuantity) {
+      if (prod.stockQuantity < item.quantity) {
         return {
           success: false,
-          error: `Insufficient stock for "${prod.name}"! Available: ${prod.stockQuantity} ${prod.unit}, requested: ${item.quantity}.`,
+          error: `Insufficient stock for "${prod.name}". Available: ${prod.stockQuantity}, Requested: ${item.quantity}`,
         };
       }
     }
 
-    const subtotal = items.reduce((acc, item) => acc + item.unitPrice * item.quantity, 0);
-    const totalDiscount = items.reduce((acc, item) => acc + (item.discount || 0), 0);
+    const subtotal = data.items.reduce((acc, it) => acc + it.unitPrice * it.quantity, 0);
+    const totalDiscount = data.items.reduce((acc, it) => acc + (it.discount || 0), 0);
     const totalPrice = Math.max(0, subtotal - totalDiscount);
-    const cleanPaid = Math.max(0, Math.min(paidAmount, totalPrice));
-    const balanceDue = totalPrice - cleanPaid;
-    const totalProfit = items.reduce((acc, item) => acc + item.itemProfit, 0);
+    const paidAmount = Math.max(0, Math.min(data.paidAmount, totalPrice));
+    const balanceDue = Math.max(0, totalPrice - paidAmount);
 
-    const nextInvoiceNum = `${settings.invoicePrefix || 'INV-'}${1000 + sales.length + 1}`;
+    const totalProfit = data.items.reduce((acc, it) => acc + it.itemProfit, 0);
+
+    const saleId = 'sale-' + Date.now();
+    const invoiceNumber = `${settings.invoicePrefix || 'INV-'}${1000 + sales.length + 1}`;
 
     const newSale: Sale = {
-      id: 'sale-' + Date.now(),
-      invoiceNumber: nextInvoiceNum,
-      customerId,
-      date: new Date().toISOString(),
-      items,
+      id: saleId,
+      customerId: data.customerId,
+      customerName: customer.name,
+      items: data.items,
       subtotal,
       totalDiscount,
       totalPrice,
-      paidAmount: cleanPaid,
+      paidAmount,
       balanceDue,
-      paymentMethod,
+      paymentMethod: data.paymentMethod || (balanceDue === 0 ? 'Cash' : 'Udhaar'),
       totalProfit,
-      notes,
+      invoiceNumber,
+      date: new Date().toISOString(),
+      notes: data.notes,
     };
 
-    // 1. Deduct stock for all items
-    setProducts((prev) =>
-      prev.map((prod) => {
-        const soldItem = items.find((it) => it.productId === prod.id);
-        if (soldItem) {
-          return { ...prod, stockQuantity: Math.max(0, prod.stockQuantity - soldItem.quantity) };
+    // Deduct stock for all items
+    setProducts((prev) => {
+      const itemMap = new Map(data.items.map((it) => [it.productId, it.quantity]));
+      return prev.map((p) => {
+        const deductQty = itemMap.get(p.id);
+        if (deductQty !== undefined) {
+          return { ...p, stockQuantity: Math.max(0, p.stockQuantity - deductQty) };
         }
-        return prod;
-      })
-    );
+        return p;
+      });
+    });
 
-    // 2. Append sale
     setSales((prev) => [newSale, ...prev]);
-
     return { success: true, sale: newSale };
   };
 
-  // Overloaded recordSale for backward compatibility with single-item callers
+  // Backward compatible recordSale
   const recordSale = (
     customerIdOrData: string | { customerId: string; items: SaleItem[]; paidAmount: number; paymentMethod?: Sale['paymentMethod']; notes?: string },
     productId?: string,
-    quantity?: number,
-    paidAmount?: number,
+    quantity: number = 1,
+    paidAmount: number = 0,
     notes?: string
   ): { success: boolean; error?: string; sale?: Sale } => {
     if (typeof customerIdOrData === 'object') {
       return recordMultiItemSale(customerIdOrData);
     }
 
-    // Single item flow
     const customerId = customerIdOrData;
-    if (!productId) return { success: false, error: 'Product required' };
     const prod = products.find((p) => p.id === productId);
     if (!prod) return { success: false, error: 'Product not found' };
 
-    const qty = quantity || 1;
+    const itemPrice = prod.price;
     const cost = prod.purchasePrice || Math.round(prod.price * 0.78);
-    const itemTotal = prod.price * qty;
+    const lineTotal = itemPrice * quantity;
+    const itemProfit = (itemPrice - cost) * quantity;
+
     const singleItem: SaleItem = {
       productId: prod.id,
       productName: prod.name,
-      companyName: companies.find((c) => c.id === prod.companyId)?.name,
+      companyName: prod.companyName,
       unit: prod.unit || 'pcs',
-      image: prod.image,
       purchasePrice: cost,
-      unitPrice: prod.price,
-      quantity: qty,
+      unitPrice: itemPrice,
+      quantity,
       discount: 0,
-      totalPrice: itemTotal,
-      itemProfit: itemTotal - cost * qty,
+      totalPrice: lineTotal,
+      itemProfit,
     };
 
     return recordMultiItemSale({
       customerId,
       items: [singleItem],
-      paidAmount: paidAmount !== undefined ? paidAmount : itemTotal,
-      paymentMethod: (paidAmount !== undefined && paidAmount < itemTotal) ? 'Udhaar' : 'Cash',
+      paidAmount,
       notes,
     });
   };
 
   const deleteSale = (id: string) => {
     const saleToDelete = sales.find((s) => s.id === id);
-    if (saleToDelete) {
-      // Revert product stock
-      if (saleToDelete.items && saleToDelete.items.length > 0) {
-        saleToDelete.items.forEach((it) => {
-          adjustStock(it.productId, it.quantity, `Void Sale ${saleToDelete.invoiceNumber || saleToDelete.id}`, 'ADD');
+    if (!saleToDelete) return;
+
+    // Restore inventory
+    if (saleToDelete.items && saleToDelete.items.length > 0) {
+      setProducts((prev) => {
+        const itemMap = new Map(saleToDelete.items.map((it) => [it.productId, it.quantity]));
+        return prev.map((p) => {
+          const addQty = itemMap.get(p.id);
+          if (addQty !== undefined) {
+            return { ...p, stockQuantity: p.stockQuantity + addQty };
+          }
+          return p;
         });
-      } else if (saleToDelete.productId && saleToDelete.quantity) {
-        adjustStock(saleToDelete.productId, saleToDelete.quantity, 'Void Sale', 'ADD');
-      }
-      setSales((prev) => prev.filter((s) => s.id !== id));
+      });
+    } else if (saleToDelete.productId && saleToDelete.quantity) {
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === saleToDelete.productId
+            ? { ...p, stockQuantity: p.stockQuantity + (saleToDelete.quantity || 1) }
+            : p
+        )
+      );
     }
+
+    setSales((prev) => prev.filter((s) => s.id !== id));
   };
 
-  // Purchase System (Incoming goods from companies)
-  const recordPurchase = ({
-    companyId,
-    billNumber,
-    items,
-    paidAmount,
-    paymentMethod = 'Bank Transfer',
-    notes,
-  }: {
+  // Purchases (Stock incoming from companies)
+  const recordPurchase = (data: {
     companyId: string;
     billNumber?: string;
     items: PurchaseItem[];
@@ -869,61 +953,73 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     paymentMethod?: Purchase['paymentMethod'];
     notes?: string;
   }): { success: boolean; error?: string; purchase?: Purchase } => {
-    if (!companyId) return { success: false, error: 'Please select a supplier company.' };
-    if (!items || items.length === 0) return { success: false, error: 'Purchase must contain at least 1 item.' };
+    const company = companies.find((c) => c.id === data.companyId);
+    if (!company) {
+      return { success: false, error: 'Supplier company not found' };
+    }
+    if (!data.items || data.items.length === 0) {
+      return { success: false, error: 'Cannot record purchase bill with zero items' };
+    }
 
-    const company = companies.find((c) => c.id === companyId);
-    const totalAmount = items.reduce((acc, it) => acc + it.totalCost, 0);
-    const cleanPaid = Math.max(0, Math.min(paidAmount, totalAmount));
-    const balancePayable = totalAmount - cleanPaid;
+    const totalAmount = data.items.reduce((acc, it) => acc + it.totalCost, 0);
+    const paidAmount = Math.max(0, Math.min(data.paidAmount, totalAmount));
+    const balancePayable = Math.max(0, totalAmount - paidAmount);
 
+    const purchaseId = 'pur-' + Date.now();
     const newPurchase: Purchase = {
-      id: 'pur-' + Date.now(),
-      companyId,
-      companyName: company?.name || 'Company Supplier',
-      billNumber: billNumber || `BILL-${Date.now().toString().slice(-4)}`,
-      date: new Date().toISOString(),
-      items,
+      id: purchaseId,
+      companyId: data.companyId,
+      companyName: company.name,
+      billNumber: data.billNumber || `BILL-${Date.now().toString().slice(-6)}`,
+      items: data.items,
       totalAmount,
-      paidAmount: cleanPaid,
+      paidAmount,
       balancePayable,
-      paymentMethod,
-      notes,
+      paymentMethod: data.paymentMethod || 'Cash',
+      date: new Date().toISOString(),
+      notes: data.notes,
     };
 
-    // 1. Increase stock for each purchased product & update purchasePrice
-    setProducts((prev) =>
-      prev.map((prod) => {
-        const item = items.find((it) => it.productId === prod.id);
-        if (item) {
+    // Increase product inventory stock & update purchase price
+    setProducts((prev) => {
+      const itemMap = new Map(data.items.map((it) => [it.productId, it]));
+      return prev.map((p) => {
+        const purItem = itemMap.get(p.id);
+        if (purItem) {
           return {
-            ...prod,
-            stockQuantity: prod.stockQuantity + item.quantity,
-            purchasePrice: item.costPrice > 0 ? item.costPrice : prod.purchasePrice,
+            ...p,
+            stockQuantity: p.stockQuantity + purItem.quantity,
+            purchasePrice: purItem.unitCost,
           };
         }
-        return prod;
-      })
-    );
+        return p;
+      });
+    });
 
-    // 2. Add purchase record
     setPurchases((prev) => [newPurchase, ...prev]);
-
     return { success: true, purchase: newPurchase };
   };
 
   const deletePurchase = (id: string) => {
     const pur = purchases.find((p) => p.id === id);
-    if (pur) {
-      // Revert product stock
-      pur.items.forEach((it) => {
-        adjustStock(it.productId, -it.quantity, `Void Purchase Bill ${pur.billNumber || pur.id}`, 'DEDUCT');
+    if (!pur) return;
+
+    // Deduct stock added by this purchase
+    setProducts((prev) => {
+      const itemMap = new Map(pur.items.map((it) => [it.productId, it.quantity]));
+      return prev.map((p) => {
+        const deductQty = itemMap.get(p.id);
+        if (deductQty !== undefined) {
+          return { ...p, stockQuantity: Math.max(0, p.stockQuantity - deductQty) };
+        }
+        return p;
       });
-      setPurchases((prev) => prev.filter((p) => p.id !== id));
-    }
+    });
+
+    setPurchases((prev) => prev.filter((p) => p.id !== id));
   };
 
-  // Payments: Customer
+  // Payments
   const recordCustomerPayment = (
     customerId: string,
     amount: number,
@@ -936,10 +1032,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       id: 'pay-' + Date.now(),
       customerId,
       amount,
-      date: new Date().toISOString(),
       paymentMethod: method,
       referenceNumber: ref,
       note,
+      date: new Date().toISOString(),
     };
     setCustomerPayments((prev) => [newPayment, ...prev]);
   };
@@ -948,12 +1044,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setCustomerPayments((prev) => prev.filter((p) => p.id !== id));
   };
 
-  // Backward compatibility alias
-  const recordPayment = (customerId: string, amount: number, note?: string) => {
-    recordCustomerPayment(customerId, amount, 'Cash', note);
-  };
-
-  // Payments: Company (Suppliers)
   const recordCompanyPayment = (
     companyId: string,
     amount: number,
@@ -966,10 +1056,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       id: 'cpay-' + Date.now(),
       companyId,
       amount,
-      date: new Date().toISOString(),
       paymentMethod: method,
       referenceNumber: ref,
       note,
+      date: new Date().toISOString(),
     };
     setCompanyPayments((prev) => [newPayment, ...prev]);
   };
@@ -978,7 +1068,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setCompanyPayments((prev) => prev.filter((p) => p.id !== id));
   };
 
-  // Order Management
+  const recordPayment = (customerId: string, amount: number, note?: string) => {
+    recordCustomerPayment(customerId, amount, 'Cash', note);
+  };
+
+  // Orders Management
   const addOrder = (data: {
     customerId: string;
     companyId?: string | null;
@@ -989,52 +1083,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     status?: CustomerOrderStatus;
   }): CustomerOrder => {
     const cust = customers.find((c) => c.id === data.customerId);
-    const comp = data.companyId ? companies.find((c) => c.id === data.companyId) : null;
+    const comp = data.companyId ? companies.find((c) => c.id === data.companyId) : undefined;
 
-    const existingNums = orders
-      .map((o) => parseInt(o.orderNumber.replace(/[^0-9]/g, ''), 10))
-      .filter((n) => !isNaN(n));
-    const nextNum = existingNums.length > 0 ? Math.max(...existingNums) + 1 : 128;
-    const orderNumber = `ORD-${String(nextNum).padStart(6, '0')}`;
-    const nowIso = new Date().toISOString();
+    const totalProducts = data.items.length;
+    const totalQuantity = data.items.reduce((sum, it) => sum + it.quantity, 0);
+    const totalAmount = data.items.reduce((sum, it) => sum + (it.totalPrice || it.price * it.quantity), 0);
 
-    const orderId = 'ord-' + Date.now();
-    const processedItems: OrderItem[] = data.items.map((it, idx) => ({
-      ...it,
-      id: it.id || `item-${Date.now()}-${idx}`,
-      orderId: orderId,
-      totalPrice:
-        it.totalPrice !== undefined
-          ? it.totalPrice
-          : it.price
-          ? it.price * it.quantity
-          : 0,
-    }));
-
-    const totalQuantity = processedItems.reduce((sum, it) => sum + (it.quantity || 0), 0);
-    const totalAmount = processedItems.reduce((sum, it) => sum + (it.totalPrice || 0), 0);
-
+    const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
     const newOrder: CustomerOrder = {
-      id: orderId,
+      id: 'ord-' + Date.now(),
       orderNumber,
       customerId: data.customerId,
-      customerName: cust?.name || 'Customer',
-      customerPhone: cust?.phone || '',
-      customerWhatsApp: cust?.whatsapp || cust?.phone || '',
-      customerAddress: cust?.address || '',
-      companyId: comp ? comp.id : data.companyId || null,
-      companyName: comp ? comp.name : null,
-      date: data.date || nowIso,
-      salesRepName: currentUser?.name || 'Sales Representative',
-      items: processedItems,
-      totalProducts: processedItems.length,
+      customerName: cust ? cust.name : 'Unknown Customer',
+      customerPhone: cust ? cust.phone : '',
+      customerWhatsApp: cust ? cust.whatsapp : '',
+      companyId: data.companyId || undefined,
+      companyName: comp ? comp.name : undefined,
+      companyPhone: comp ? comp.contactPhone : undefined,
+      items: data.items,
+      totalProducts,
       totalQuantity,
       totalAmount,
       showPrice: data.showPrice !== undefined ? data.showPrice : true,
       status: data.status || 'Pending',
-      notes: data.notes || '',
-      createdAt: nowIso,
-      updatedAt: nowIso,
+      date: data.date || new Date().toISOString(),
+      notes: data.notes,
     };
 
     setOrders((prev) => [newOrder, ...prev]);
@@ -1045,18 +1118,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setOrders((prev) =>
       prev.map((o) => {
         if (o.id !== id) return o;
-        const updated = { ...o, ...data, updatedAt: new Date().toISOString() };
+        const updated = { ...o, ...data };
         if (data.items) {
           updated.totalProducts = data.items.length;
-          updated.totalQuantity = data.items.reduce((sum, it) => sum + (it.quantity || 0), 0);
+          updated.totalQuantity = data.items.reduce((sum, it) => sum + it.quantity, 0);
           updated.totalAmount = data.items.reduce(
-            (sum, it) =>
-              sum +
-              (it.totalPrice !== undefined
-                ? it.totalPrice
-                : it.price
-                ? it.price * it.quantity
-                : 0),
+            (sum, it) => sum + (it.totalPrice || it.price * it.quantity),
             0
           );
         }
@@ -1070,43 +1137,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const updateOrderStatus = (id: string, status: CustomerOrderStatus) => {
-    setOrders((prev) =>
-      prev.map((o) => (o.id === id ? { ...o, status, updatedAt: new Date().toISOString() } : o))
-    );
+    updateOrder(id, { status });
   };
 
   const duplicateOrder = (orderId: string): CustomerOrder | null => {
     const existing = orders.find((o) => o.id === orderId);
     if (!existing) return null;
+
     return addOrder({
       customerId: existing.customerId,
       companyId: existing.companyId,
-      items: existing.items.map((it) => ({
-        ...it,
-        id: undefined,
-        orderId: undefined,
-      })),
+      items: existing.items.map((it) => ({ ...it })),
       showPrice: existing.showPrice,
       notes: existing.notes ? `(Duplicate) ${existing.notes}` : 'Duplicate order',
     });
   };
 
-  // Backup & Restore
-  const resetDemoData = () => {
-    setCurrentUser(INITIAL_USER);
-    setSettings(INITIAL_SETTINGS);
-    setCompanies(INITIAL_COMPANIES);
-    setProducts(INITIAL_PRODUCTS);
-    setCustomers(INITIAL_CUSTOMERS);
-    setSales(INITIAL_SALES);
-    setPurchases(INITIAL_PURCHASES);
-    setCustomerPayments(INITIAL_CUSTOMER_PAYMENTS);
-    setCompanyPayments(INITIAL_COMPANY_PAYMENTS);
-    setStockAdjustments([]);
-    setOrders(INITIAL_CUSTOMER_ORDERS);
-    localStorage.clear();
-  };
-
+  // Clear data for current user (or globally if no user)
   const clearAllData = () => {
     setCompanies([]);
     setProducts([]);
@@ -1117,11 +1164,35 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setCompanyPayments([]);
     setStockAdjustments([]);
     setOrders([]);
+
+    if (currentUser && currentUser.email) {
+      const normEmail = normalizeEmail(currentUser.email);
+      const emptyBundle: UserDataBundle = {
+        user: currentUser,
+        settings,
+        companies: [],
+        products: [],
+        customers: [],
+        sales: [],
+        purchases: [],
+        customerPayments: [],
+        companyPayments: [],
+        stockAdjustments: [],
+        orders: [],
+      };
+      saveUserBundle(normEmail, emptyBundle);
+    }
+  };
+
+  // Replaced resetDemoData with a clean reset to empty state (no demo data)
+  const resetDemoData = () => {
+    clearAllData();
   };
 
   const exportDataJSON = (): string => {
     const data = {
       exportedAt: new Date().toISOString(),
+      user: currentUser,
       settings,
       companies,
       products,

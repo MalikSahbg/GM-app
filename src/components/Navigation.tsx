@@ -38,7 +38,7 @@ export const Navigation: React.FC<NavigationProps> = ({ currentTab, onSelectTab 
     { id: 'payments', label: 'Payments', icon: CreditCard },
     {
       id: 'udhaar',
-      label: 'Udhaar (Receivable)',
+      label: 'Udhaar',
       icon: Wallet,
       badge: stats.pendingUdhaarCustomers > 0 ? stats.pendingUdhaarCustomers : undefined,
       badgeColor: 'bg-rose-500',
@@ -53,14 +53,17 @@ export const Navigation: React.FC<NavigationProps> = ({ currentTab, onSelectTab 
     { id: 'products', label: 'Products', icon: Package },
     { id: 'companies', label: 'Companies', icon: Building2 },
     { id: 'customers', label: 'Customers', icon: Users },
-    { id: 'reports', label: 'Reports & P&L', icon: BarChart3 },
+    { id: 'reports', label: 'Reports', icon: BarChart3 },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
   return (
-    <div className="bg-white border-b border-slate-200 sticky top-16 z-20 shadow-2xs">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <nav className="flex space-x-1 sm:space-x-1.5 overflow-x-auto py-2 scrollbar-none" aria-label="Tabs">
+    <div className="bg-white border-b border-slate-200 sticky top-16 z-20 shadow-2xs w-full max-w-full overflow-hidden">
+      <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8">
+        <nav
+          className="flex space-x-1 sm:space-x-1.5 overflow-x-auto py-2 scrollbar-none scroll-smooth touch-pan-x"
+          aria-label="Tabs"
+        >
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = currentTab === item.id;
@@ -68,7 +71,7 @@ export const Navigation: React.FC<NavigationProps> = ({ currentTab, onSelectTab 
               <button
                 key={item.id}
                 onClick={() => onSelectTab(item.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-xl whitespace-nowrap transition-all duration-150 relative ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-xl whitespace-nowrap transition-all duration-150 relative shrink-0 ${
                   isActive
                     ? 'bg-emerald-600 text-white font-bold shadow-xs'
                     : item.highlight

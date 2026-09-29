@@ -133,9 +133,90 @@ export const ProductView: React.FC<ProductViewProps> = ({
         </select>
       </div>
 
-      {/* Products Table */}
+      {/* Products Display: Mobile Cards + Desktop Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Mobile View: Cards */}
+        <div className="block md:hidden divide-y divide-slate-100">
+          {filteredProducts.length === 0 ? (
+            <div className="py-12 text-center text-slate-400 text-xs">
+              No products found. Click "Add Product" to create one.
+            </div>
+          ) : (
+            filteredProducts.map((p) => {
+              const isLow = p.stockQuantity <= (p.minStockThreshold || 5);
+              return (
+                <div key={p.id} className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
+                        {p.image ? (
+                          <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <ImageIcon className="h-6 w-6 text-slate-400" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="font-bold text-sm text-slate-900 truncate">{p.name}</h3>
+                        <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500">
+                          <span className="truncate">{p.companyName}</span>
+                          {p.sku && <span>• SKU: {p.sku}</span>}
+                        </div>
+                      </div>
+                    </div>
+
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-bold rounded-full shrink-0 ${
+                        p.stockQuantity === 0
+                          ? 'bg-rose-100 text-rose-800'
+                          : isLow
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-emerald-100 text-emerald-800'
+                      }`}
+                    >
+                      {p.stockQuantity} {p.unit || 'pcs'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100">
+                    <div>
+                      <span className="text-slate-400 text-[10px] uppercase font-semibold block">Retail Rate</span>
+                      <span className="font-extrabold text-sm text-slate-900">
+                        {formatCurrency(p.price, settings.currency)}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-slate-400 text-[10px] uppercase font-semibold block">Cost Rate</span>
+                      <span className="font-medium text-slate-600">
+                        {formatCurrency(p.purchasePrice || 0, settings.currency)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => onEditProduct(p.id)}
+                        className="p-2 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl transition-colors"
+                        title="Edit Product"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(p.id, p.name)}
+                        className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
+                        title="Delete Product"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Desktop View: Full Table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left text-sm text-slate-600">
             <thead className="bg-slate-50 text-xs uppercase font-semibold text-slate-500 border-b border-slate-100">
               <tr>

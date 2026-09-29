@@ -574,52 +574,60 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {recentSales.map((sale) => (
-                  <tr key={sale.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-3 px-4 text-xs font-medium text-slate-500 whitespace-nowrap">
-                      {formatDate(sale.date)}
-                    </td>
-                    <td className="py-3 px-4 font-semibold text-slate-900 whitespace-nowrap">
-                      {sale.customerName}
-                    </td>
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      {sale.items && sale.items.length > 0 ? (
-                        <span>
-                          {sale.items[0].productName}
-                          {sale.items.length > 1 && ` +${sale.items.length - 1} more`}
-                        </span>
-                      ) : (
-                        <span>{sale.productName || 'Sale'}</span>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-center font-bold text-slate-700">
-                      {sale.items && sale.items.length > 0
-                        ? sale.items.reduce((s, it) => s + it.quantity, 0)
-                        : (sale.quantity || 1)}
-                    </td>
-                    <td className="py-3 px-4 text-right font-bold text-slate-900">
-                      {formatCurrency(sale.totalPrice, settings.currency)}
-                    </td>
-                    <td className="py-3 px-4 text-right font-medium text-emerald-700">
-                      {formatCurrency(sale.paidAmount, settings.currency)}
-                    </td>
-                    <td className="py-3 px-4 text-center whitespace-nowrap">
-                      {sale.balanceDue === 0 ? (
-                        <span className="inline-block px-2.5 py-0.5 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">
-                          Paid
-                        </span>
-                      ) : sale.paidAmount === 0 ? (
-                        <span className="inline-block px-2.5 py-0.5 text-xs font-semibold rounded-full bg-rose-100 text-rose-800">
-                          Full Udhaar
-                        </span>
-                      ) : (
-                        <span className="inline-block px-2.5 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-800">
-                          Partial
-                        </span>
-                      )}
+                {recentSales.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-xs text-slate-400">
+                      No sales recorded yet. Click "+ New Sale" to record your first invoice.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  recentSales.map((sale) => (
+                    <tr key={sale.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3 px-4 text-xs font-medium text-slate-500 whitespace-nowrap">
+                        {formatDate(sale.date)}
+                      </td>
+                      <td className="py-3 px-4 font-semibold text-slate-900 whitespace-nowrap">
+                        {sale.customerName}
+                      </td>
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        {sale.items && sale.items.length > 0 ? (
+                          <span>
+                            {sale.items[0].productName}
+                            {sale.items.length > 1 && ` +${sale.items.length - 1} more`}
+                          </span>
+                        ) : (
+                          <span>{sale.productName || 'Sale'}</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-center font-bold text-slate-700">
+                        {sale.items && sale.items.length > 0
+                          ? sale.items.reduce((s, it) => s + it.quantity, 0)
+                          : (sale.quantity || 1)}
+                      </td>
+                      <td className="py-3 px-4 text-right font-bold text-slate-900">
+                        {formatCurrency(sale.totalPrice, settings.currency)}
+                      </td>
+                      <td className="py-3 px-4 text-right font-medium text-emerald-700">
+                        {formatCurrency(sale.paidAmount, settings.currency)}
+                      </td>
+                      <td className="py-3 px-4 text-center whitespace-nowrap">
+                        {sale.balanceDue === 0 ? (
+                          <span className="inline-block px-2.5 py-0.5 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">
+                            Paid
+                          </span>
+                        ) : sale.paidAmount === 0 ? (
+                          <span className="inline-block px-2.5 py-0.5 text-xs font-semibold rounded-full bg-rose-100 text-rose-800">
+                            Full Udhaar
+                          </span>
+                        ) : (
+                          <span className="inline-block px-2.5 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-800">
+                            Partial
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

@@ -179,9 +179,106 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({
         </div>
       </div>
 
-      {/* Table */}
+      {/* Sales Display: Mobile Cards + Desktop Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Mobile View: Cards */}
+        <div className="block md:hidden divide-y divide-slate-100">
+          {filteredSales.length === 0 ? (
+            <div className="py-12 text-center text-slate-400 text-xs">
+              No sales records found matching your query.
+            </div>
+          ) : (
+            filteredSales.map((sale) => (
+              <div key={sale.id} className="p-4 space-y-2.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-400 font-mono block">
+                      {sale.invoiceNumber || sale.id} • {formatDate(sale.date)}
+                    </span>
+                    <h3 className="font-bold text-sm text-slate-900 truncate mt-0.5">
+                      {sale.customerName}
+                    </h3>
+                  </div>
+
+                  <span
+                    className={`inline-block px-2.5 py-0.5 text-xs font-bold rounded-full shrink-0 ${
+                      sale.balanceDue === 0
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : sale.paidAmount === 0
+                        ? 'bg-rose-100 text-rose-800'
+                        : 'bg-amber-100 text-amber-800'
+                    }`}
+                  >
+                    {sale.balanceDue === 0
+                      ? 'Paid'
+                      : sale.paidAmount === 0
+                      ? 'Full Udhaar'
+                      : 'Partial'}
+                  </span>
+                </div>
+
+                <div className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl">
+                  {sale.items && sale.items.length > 0 ? (
+                    <div>
+                      <span className="font-semibold text-slate-800">
+                        {sale.items[0].productName}
+                        {sale.items.length > 1 && ` +${sale.items.length - 1} more`}
+                      </span>
+                      <span className="block text-[11px] text-slate-400 mt-0.5">
+                        Qty: {sale.items.reduce((acc, i) => acc + i.quantity, 0)} ({sale.items.length} items)
+                      </span>
+                    </div>
+                  ) : (
+                    <span>{sale.productName || 'Sale Item'} • Qty: {sale.quantity || 1}</span>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100">
+                  <div>
+                    <span className="text-slate-400 text-[10px] uppercase font-semibold block">Total Bill</span>
+                    <span className="font-bold text-sm text-slate-900">
+                      {formatCurrency(sale.totalPrice)}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-400 text-[10px] uppercase font-semibold block">Paid</span>
+                    <span className="font-semibold text-emerald-700">
+                      {formatCurrency(sale.paidAmount)}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-400 text-[10px] uppercase font-semibold block">Balance</span>
+                    <span className={`font-bold ${sale.balanceDue > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+                      {formatCurrency(sale.balanceDue)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => onViewReceipt(sale)}
+                      className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
+                      title="View / Print Receipt"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(sale.id)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                      title="Void Sale & Restore Stock"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Desktop View: Table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left text-sm text-slate-600">
             <thead className="bg-slate-50 text-xs uppercase font-semibold text-slate-500 border-b border-slate-100">
               <tr>
