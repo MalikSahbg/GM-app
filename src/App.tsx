@@ -143,6 +143,7 @@ export const App: React.FC = () => {
           <DashboardView
             onSelectTab={setCurrentTab}
             onOpenQuickSale={handleOpenQuickSale}
+            onOpenCreateOrder={handleOpenQuickSale}
             onOpenAddProduct={handleOpenAddProduct}
             onOpenAddCompany={handleOpenAddCompany}
             onOpenAddCustomer={handleOpenAddCustomer}
