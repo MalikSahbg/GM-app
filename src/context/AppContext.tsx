@@ -21,7 +21,19 @@ import {
   OrderItem,
   CustomerOrderStatus,
 } from '../types';
-import { INITIAL_SETTINGS } from '../data/initialData';
+import {
+  INITIAL_USER,
+  INITIAL_SETTINGS,
+  INITIAL_COMPANIES,
+  INITIAL_PRODUCTS,
+  INITIAL_CUSTOMERS,
+  INITIAL_SALES,
+  INITIAL_PURCHASES,
+  INITIAL_CUSTOMER_PAYMENTS,
+  INITIAL_COMPANY_PAYMENTS,
+  INITIAL_ADJUSTMENTS,
+  INITIAL_CUSTOMER_ORDERS,
+} from '../data/initialData';
 
 export const normalizeEmail = (email: string): string => {
   return (email || '').trim().toLowerCase();
@@ -223,7 +235,7 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // Determine initial state based strictly on active logged-in email
+  // Determine initial state based on active logged-in email
   const initialData = useMemo(() => {
     try {
       const activeEmail = normalizeEmail(localStorage.getItem(STORAGE_ACTIVE_EMAIL_KEY) || '');
@@ -232,38 +244,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (bundle) {
           return bundle;
         }
-
-        // Account exists in accounts list but bundle wasn't saved yet - generate fresh empty bundle
-        const accounts = getStoredAccounts();
-        const existingAcc = accounts.find((a) => normalizeEmail(a.email) === activeEmail);
-        if (existingAcc) {
-          const user: User = {
-            id: existingAcc.id,
-            name: existingAcc.name,
-            email: activeEmail,
-            storeName: existingAcc.storeName,
-            createdAt: existingAcc.createdAt,
-          };
-          const freshBundle: UserDataBundle = {
-            user,
-            settings: {
-              ...INITIAL_SETTINGS,
-              businessName: user.storeName,
-              email: activeEmail,
-            },
-            companies: [],
-            products: [],
-            customers: [],
-            sales: [],
-            purchases: [],
-            customerPayments: [],
-            companyPayments: [],
-            stockAdjustments: [],
-            orders: [],
-          };
-          saveUserBundle(activeEmail, freshBundle);
-          return freshBundle;
-        }
       }
     } catch (e) {
       console.error('Error loading initial active user bundle:', e);
@@ -271,18 +251,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return null;
   }, []);
 
-  // 1. Current user - null if not logged in; no dummy user
-  const [currentUser, setCurrentUser] = useState<User | null>(initialData?.user || null);
+  // 1. Current user
+  const [currentUser, setCurrentUser] = useState<User | null>(initialData?.user || INITIAL_USER);
 
   // 2. Business Settings
   const [settings, setSettings] = useState<BusinessSettings>(initialData?.settings || INITIAL_SETTINGS);
 
-  // 3. Companies - empty for fresh user
-  const [companies, setCompanies] = useState<Company[]>(initialData?.companies || []);
+  // 3. Companies
+  const [companies, setCompanies] = useState<Company[]>(initialData?.companies || INITIAL_COMPANIES);
 
-  // 4. Products - empty for fresh user
+  // 4. Products
   const [products, setProducts] = useState<Product[]>(() => {
-    const raw = initialData?.products || [];
+    const raw = initialData?.products || INITIAL_PRODUCTS;
     return raw.map((p) => ({
       ...p,
       purchasePrice: p.purchasePrice !== undefined ? p.purchasePrice : Math.round(p.price * 0.78),
@@ -291,42 +271,42 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }));
   });
 
-  // 5. Customers - empty for fresh user
+  // 5. Customers
   const [customers, setCustomers] = useState<Customer[]>(() => {
-    const raw = initialData?.customers || [];
+    const raw = initialData?.customers || INITIAL_CUSTOMERS;
     return raw.map((c) => ({
       ...c,
       whatsapp: c.whatsapp || c.phone,
     }));
   });
 
-  // 6. Sales - empty for fresh user
-  const [sales, setSales] = useState<Sale[]>(initialData?.sales || []);
+  // 6. Sales
+  const [sales, setSales] = useState<Sale[]>(initialData?.sales || INITIAL_SALES);
 
-  // 7. Purchases - empty for fresh user
-  const [purchases, setPurchases] = useState<Purchase[]>(initialData?.purchases || []);
+  // 7. Purchases
+  const [purchases, setPurchases] = useState<Purchase[]>(initialData?.purchases || INITIAL_PURCHASES);
 
-  // 8. Customer Payments - empty for fresh user
+  // 8. Customer Payments
   const [customerPayments, setCustomerPayments] = useState<CustomerPayment[]>(
-    initialData?.customerPayments || []
+    initialData?.customerPayments || INITIAL_CUSTOMER_PAYMENTS
   );
 
-  // 9. Company Payments - empty for fresh user
+  // 9. Company Payments
   const [companyPayments, setCompanyPayments] = useState<CompanyPayment[]>(
-    initialData?.companyPayments || []
+    initialData?.companyPayments || INITIAL_COMPANY_PAYMENTS
   );
 
-  // 10. Stock Adjustments - empty for fresh user
+  // 10. Stock Adjustments
   const [stockAdjustments, setStockAdjustments] = useState<StockAdjustment[]>(
-    initialData?.stockAdjustments || []
+    initialData?.stockAdjustments || INITIAL_ADJUSTMENTS
   );
 
-  // 11. Customer & Company Orders - empty for fresh user
+  // 11. Customer & Company Orders
   const [orders, setOrders] = useState<CustomerOrder[]>(
-    initialData?.orders || []
+    initialData?.orders || INITIAL_CUSTOMER_ORDERS
   );
 
-  // Flag to avoid saving during initial bundle switch or logout
+  // Flag to avoid saving during initial bundle switch
   const isSwitchingAccountRef = useRef(false);
 
   // Auto-persist active user bundle on any state change
@@ -530,33 +510,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Business settings update
   const updateSettings = (newSettings: Partial<BusinessSettings>) => {
     setSettings((prev) => ({ ...prev, ...newSettings }));
-    if (newSettings.businessName && currentUser) {
-      const updatedUser = { ...currentUser, storeName: newSettings.businessName };
-      setCurrentUser(updatedUser);
-      saveStoredAccount(updatedUser);
-    }
   };
 
-  // Helper to load bundle into state cleanly without losing data
+  // Helper to load bundle into state cleanly
   const applyBundle = (bundle: UserDataBundle) => {
     isSwitchingAccountRef.current = true;
     setCurrentUser(bundle.user);
     setSettings(bundle.settings || INITIAL_SETTINGS);
     setCompanies(bundle.companies || []);
-    setProducts(
-      (bundle.products || []).map((p) => ({
-        ...p,
-        purchasePrice: p.purchasePrice !== undefined ? p.purchasePrice : Math.round(p.price * 0.78),
-        unit: p.unit || 'pcs',
-        minStockThreshold: p.minStockThreshold !== undefined ? p.minStockThreshold : 5,
-      }))
-    );
-    setCustomers(
-      (bundle.customers || []).map((c) => ({
-        ...c,
-        whatsapp: c.whatsapp || c.phone,
-      }))
-    );
+    setProducts(bundle.products || []);
+    setCustomers(bundle.customers || []);
     setSales(bundle.sales || []);
     setPurchases(bundle.purchases || []);
     setCustomerPayments(bundle.customerPayments || []);
@@ -565,10 +528,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setOrders(bundle.orders || []);
     setTimeout(() => {
       isSwitchingAccountRef.current = false;
-    }, 100);
+    }, 50);
   };
 
-  // Helper to clear state to completely empty on logout
+  // Helper to clear state to clean empty
   const applyEmptyState = () => {
     isSwitchingAccountRef.current = true;
     setCurrentUser(null);
@@ -584,7 +547,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setOrders([]);
     setTimeout(() => {
       isSwitchingAccountRef.current = false;
-    }, 100);
+    }, 50);
   };
 
   // Auth: Login
@@ -592,15 +555,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const normEmail = normalizeEmail(email);
     if (!normEmail) return false;
 
-    // 1. Check if user already has an existing saved bundle - RESTORE IT EXACTLY WITHOUT RESETTING
+    // Check if user has an existing saved bundle
     const existingBundle = loadUserBundle(normEmail);
     if (existingBundle) {
+      // Restore the exact previous data - DO NOT RESET
       applyBundle(existingBundle);
       localStorage.setItem(STORAGE_ACTIVE_EMAIL_KEY, normEmail);
       return true;
     }
 
-    // 2. Check if account is in accounts list
+    // Check if account registered without bundle
     const accounts = getStoredAccounts();
     const existingAcc = accounts.find((a) => normalizeEmail(a.email) === normEmail);
 
@@ -612,7 +576,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       createdAt: existingAcc ? existingAcc.createdAt : new Date().toISOString(),
     };
 
-    // New user starts with a completely empty app (no demo data)
     const newBundle: UserDataBundle = {
       user,
       settings: {
@@ -643,7 +606,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const normEmail = normalizeEmail(email);
     if (!normEmail) return false;
 
-    // If an existing bundle already exists for this email, RESTORE it without resetting
+    // If an existing bundle exists for this email, RESTORE it without resetting
     const existingBundle = loadUserBundle(normEmail);
     if (existingBundle) {
       applyBundle(existingBundle);
@@ -651,7 +614,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return true;
     }
 
-    // Create fresh account with completely empty app (no demo data)
+    // Create fresh account
     const cleanStoreName = storeName.trim() || 'My Store';
     const user: User = {
       id: 'usr-' + Date.now(),
@@ -686,7 +649,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return true;
   };
 
-  // Auth: Logout - clears active user and resets state to empty
+  // Auth: Logout
   const logout = () => {
     localStorage.removeItem(STORAGE_ACTIVE_EMAIL_KEY);
     applyEmptyState();
@@ -1221,7 +1184,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  // Reset demo data resets user state cleanly to empty (no automatic dummy data)
+  // Replaced resetDemoData with a clean reset to empty state (no demo data)
   const resetDemoData = () => {
     clearAllData();
   };
