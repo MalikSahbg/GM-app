@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { CustomerOrder } from '../types';
 import { useApp } from '../context/AppContext';
 import { formatCurrency, formatDate } from '../utils/formatters';
-import { X, Printer, Share2, MessageCircle, FileText, Building2, User } from 'lucide-react';
+import { createOrderPdfFile, downloadOrderPdf, shareOrderPdf } from '../utils/orderPdf';
+import { X, Share2, MessageCircle, FileText, Building2, User, Download } from 'lucide-react';
 
 interface OrderPdfModalProps {
   order: CustomerOrder | null;
@@ -20,20 +22,30 @@ export const OrderPdfModal: React.FC<OrderPdfModalProps> = ({
     initialType === 'COMPANY' && order?.companyName ? 'COMPANY' : 'CUSTOMER'
   );
 
+  useEffect(() => {
+    setDocType(initialType === 'COMPANY' && order?.companyName ? 'COMPANY' : 'CUSTOMER');
+  }, [initialType, order?.id, order?.companyName]);
+
   if (!order) return null;
 
   const showPrice = !!order.showPrice;
   const hasCompany = !!order.companyName;
 
-  const handlePrint = () => {
-    window.print();
+  const handleDownloadPdf = async () => {
+    try {
+      await downloadOrderPdf(createOrderPdfFile(order, settings, docType));
+      alert(Capacitor.isNativePlatform() ? 'PDF saved in Documents/SalesManager.' : 'PDF download started.');
+    } catch (error) {
+      console.error('Order PDF save failed', error);
+      alert('Could not save the PDF. Please try again.');
+    }
   };
 
   const getWhatsAppMessage = () => {
     if (docType === 'CUSTOMER') {
       const itemsList = order.items
         .map((it, idx) => {
-          const priceStr = showPrice && it.price ? ` @ ${formatCurrency(it.price, settings.currency)} = ${formatCurrency(it.totalPrice || (it.price * it.quantity), settings.currency)}` : '';
+          const priceStr = showPrice && it.price ? ` @ ${formatCurrency(it.price, settings.currency)} = ${formatCurrency(it.totalPrice ?? (it.price * it.quantity), settings.currency)}` : '';
           return `${idx + 1}. *${it.productName}* - ${it.quantity} ${it.unit || 'pcs'}${priceStr}`;
         })
         .join('\n');
@@ -70,27 +82,21 @@ export const OrderPdfModal: React.FC<OrderPdfModalProps> = ({
   };
 
   const handleShareNative = async () => {
-    const text = getWhatsAppMessage();
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: `Order ${order.orderNumber} - ${docType === 'CUSTOMER' ? order.customerName : order.companyName}`,
-          text,
-        });
-      } catch (err) {
-        // User cancelled or share failed
-      }
-    } else {
-      navigator.clipboard.writeText(text);
-      alert('Order details copied to clipboard!');
+    const file = createOrderPdfFile(order, settings, docType);
+    try {
+      await shareOrderPdf(
+        file,
+        `Order ${order.orderNumber} - ${docType === 'CUSTOMER' ? order.customerName : order.companyName}`
+      );
+    } catch {
+      alert('The PDF was saved in Documents/SalesManager, but sharing could not be opened.');
     }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
       <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-4 flex flex-col max-h-[92vh]">
-        {/* Modal Toolbar (Hidden during print) */}
-        <div className="p-4 bg-slate-900 text-white flex flex-wrap items-center justify-between gap-3 print:hidden shrink-0">
+        <div className="p-4 bg-slate-900 text-white flex flex-wrap items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-emerald-400" />
             <div>
@@ -136,12 +142,12 @@ export const OrderPdfModal: React.FC<OrderPdfModalProps> = ({
             </div>
 
             <button
-              onClick={handlePrint}
-              className="p-1.5 sm:px-3 sm:py-1.5 bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-semibold rounded-lg flex items-center gap-1 transition-colors"
-              title="Print or Save as PDF"
+              onClick={handleDownloadPdf}
+              className="min-h-10 rounded-lg bg-blue-600 px-3 text-white text-xs font-semibold flex items-center gap-1.5 transition hover:bg-blue-500 active:translate-y-px"
+              title="Save PDF"
             >
-              <Printer className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Print / PDF</span>
+              <Download className="h-4 w-4" />
+              <span>Save PDF</span>
             </button>
 
             <button
@@ -155,10 +161,11 @@ export const OrderPdfModal: React.FC<OrderPdfModalProps> = ({
 
             <button
               onClick={handleShareNative}
-              className="p-1.5 sm:px-2.5 sm:py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold rounded-lg flex items-center gap-1 transition-colors"
-              title="Android Share Sheet"
+              className="min-h-10 rounded-lg bg-slate-700 px-3 text-white text-xs font-semibold flex items-center gap-1.5 transition hover:bg-slate-600 active:translate-y-px"
+              title="Share PDF"
             >
               <Share2 className="h-3.5 w-3.5" />
+              <span>Share PDF</span>
             </button>
 
             <button
@@ -306,6 +313,9 @@ export const OrderPdfModal: React.FC<OrderPdfModalProps> = ({
               <p className="italic">{settings.pdfFooterText || 'Thank you for your order!'}</p>
               <p className="text-[10px] text-slate-400">
                 Generated via {settings.businessName} Order Booking System
+              </p>
+              <p className="pt-1 text-[10px] font-medium tracking-wide text-slate-500">
+                Powered by Noman Ali <span className="px-1 text-slate-300">·</span> Phone: 03067458074
               </p>
             </div>
           </div>

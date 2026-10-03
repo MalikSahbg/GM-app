@@ -2,9 +2,11 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  storeName?: string;
+  storeName: string;
   role?: string;
   createdAt: string;
+  phone?: string;
+  profileImage?: string;
 }
 
 export interface Company {
@@ -26,8 +28,8 @@ export interface Product {
   companyId: string;
   purchasePrice: number; // Cost price to calculate profit
   price: number; // Sale price
-  stockQuantity: number;
-  minStockThreshold: number; // Default 5 for low stock badge
+  stockQuantity?: number; // Legacy stored field, retained for backward compatibility.
+  minStockThreshold?: number; // Legacy stored field, retained for backward compatibility.
   category?: string;
   sku?: string; // Barcode / SKU
   unit: string; // pcs, kg, litre, box, packet, etc.
@@ -69,6 +71,8 @@ export interface Sale {
   id: string;
   invoiceNumber?: string;
   customerId: string;
+  customerName?: string;
+  companyId?: string;
   date: string;
   items: SaleItem[];
   subtotal: number;
@@ -143,8 +147,10 @@ export interface StockAdjustment {
   id: string;
   productId: string;
   productName: string;
-  type: 'ADD' | 'DEDUCT' | 'RETURN' | 'DAMAGE';
-  quantity: number;
+  type: 'ADD' | 'DEDUCT' | 'RETURN' | 'DAMAGE' | 'CORRECTION' | 'AUDIT';
+  previousQuantity: number;
+  newQuantity: number;
+  adjustmentQuantity: number;
   reason: string;
   date: string;
 }
@@ -165,6 +171,7 @@ export interface CustomerBalance {
 export interface CompanyBalance {
   companyId: string;
   companyName: string;
+  contactPerson?: string;
   contactPhone?: string;
   totalPurchasesCount: number;
   totalPurchasedAmount: number;
@@ -205,7 +212,6 @@ export interface DashboardStats {
   totalPayable: number; // Total Payable to Companies
   pendingUdhaarCustomers: number;
   totalProducts: number;
-  lowStockCount: number;
   totalCustomers: number;
   totalCompanies: number;
   totalPurchasesAmount: number;
@@ -258,6 +264,7 @@ export interface CustomerOrder {
   customerPhone: string;
   customerWhatsApp?: string;
   customerAddress?: string;
+  companyPhone?: string;
   companyId?: string | null;
   companyName?: string | null;
   date: string;

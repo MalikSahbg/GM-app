@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { CustomerOrder, OrderItem, Customer, Company, ProductWithCompany } from '../types';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../utils/formatters';
+import { createOrderPdfFile, shareOrderPdf } from '../utils/orderPdf';
 import {
   X,
   Search,
@@ -13,7 +14,6 @@ import {
   User,
   Package,
   FileText,
-  Printer,
   MessageCircle,
   Share2,
   Eye,
@@ -47,6 +47,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>(''); // Optional
   const [showPrice, setShowPrice] = useState<boolean>(true);
+  const [sendPdfToCustomer, setSendPdfToCustomer] = useState(false);
+  const [sendPdfToCompany, setSendPdfToCompany] = useState(false);
   const [notes, setNotes] = useState<string>('');
 
   // Selected products: array of { product, quantity }
@@ -82,6 +84,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
     if (isOpen) {
       setCompletedOrder(null);
       setErrorMsg(null);
+      setSendPdfToCustomer(false);
+      setSendPdfToCompany(false);
 
       if (initialOrderToEdit) {
         setSelectedCustomerId(initialOrderToEdit.customerId);
@@ -333,7 +337,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
         ''
       );
     } else {
-      text = `*Order Booking for ${completedOrder.companyName}*\n*Order #:* ${completedOrder.orderNumber}\n*From:* ${settings.businessName}\n*Customer:* ${completedOrder.customerName}\n\n*Required Stock:*\n${itemsList}\n${totalStr}\n\nPlease prepare this order for supply.`;
+      text = `*Order Booking for ${completedOrder.companyName}*\n*Order #:* ${completedOrder.orderNumber}\n*From:* ${settings.businessName}\n*Customer:* ${completedOrder.customerName}\n\n*Products Requested:*\n${itemsList}\n${totalStr}\n\nPlease prepare this order for supply.`;
       phone = '';
     }
 
@@ -341,6 +345,16 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
       ? `https://wa.me/${phone}?text=${encodeURIComponent(text)}`
       : `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
+  };
+
+  const handleSendPdf = async (target: 'CUSTOMER' | 'COMPANY') => {
+    if (!completedOrder) return;
+    const file = createOrderPdfFile(completedOrder, settings, target);
+    try {
+      await shareOrderPdf(file, `Order ${completedOrder.orderNumber}`);
+    } catch {
+      window.alert('The PDF was saved in Documents/SalesManager, but the share sheet could not be opened.');
+    }
   };
 
   if (!isOpen) return null;
@@ -427,7 +441,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                   }}
                   className="w-full px-3.5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-xs"
                 >
-                  <Printer className="h-3.5 w-3.5 text-emerald-400" />
+                  <FileText className="h-3.5 w-3.5 text-emerald-400" />
                   <span>Generate PDF</span>
                 </button>
               </div>
@@ -460,6 +474,29 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                   </button>
                 )}
               </div>
+
+              {(sendPdfToCustomer || (sendPdfToCompany && completedOrder.companyName)) && (
+                <div className="grid grid-cols-1 gap-2 border-t border-slate-200 pt-3">
+                  {sendPdfToCustomer && (
+                    <button
+                      type="button"
+                      onClick={() => void handleSendPdf('CUSTOMER')}
+                      className="w-full rounded-xl bg-blue-600 px-3.5 py-2.5 text-xs font-semibold text-white hover:bg-blue-700"
+                    >
+                      Share PDF to Customer
+                    </button>
+                  )}
+                  {sendPdfToCompany && completedOrder.companyName && (
+                    <button
+                      type="button"
+                      onClick={() => void handleSendPdf('COMPANY')}
+                      className="w-full rounded-xl bg-teal-700 px-3.5 py-2.5 text-xs font-semibold text-white hover:bg-teal-800"
+                    >
+                      Share PDF to Company
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="pt-2">
@@ -876,6 +913,40 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                   className="sr-only peer"
                 />
                 <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+              </label>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label className={`flex min-h-14 min-w-0 cursor-pointer items-center gap-3 rounded-xl border p-3.5 transition-colors ${sendPdfToCustomer ? 'border-emerald-300 bg-emerald-50/70' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+                <input
+                  type="checkbox"
+                  checked={sendPdfToCustomer}
+                  onChange={(event) => setSendPdfToCustomer(event.target.checked)}
+                  className="peer sr-only"
+                />
+                <span aria-hidden="true" className={`relative h-6 w-11 shrink-0 rounded-full transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-emerald-600 peer-focus-visible:ring-offset-2 ${sendPdfToCustomer ? 'bg-emerald-600' : 'bg-slate-300'}`}>
+                  <span className={`absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${sendPdfToCustomer ? 'translate-x-5' : 'translate-x-0'}`} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-slate-800">Send PDF to Customer</span>
+                  <span className="mt-0.5 block text-xs font-normal text-slate-500">Share after saving the order</span>
+                </span>
+              </label>
+              <label className={`flex min-h-14 min-w-0 items-center gap-3 rounded-xl border p-3.5 transition-colors ${selectedCompany ? `cursor-pointer ${sendPdfToCompany ? 'border-emerald-300 bg-emerald-50/70' : 'border-slate-200 bg-white hover:border-slate-300'}` : 'cursor-not-allowed border-slate-200 bg-slate-50'}`}>
+                <input
+                  type="checkbox"
+                  checked={sendPdfToCompany}
+                  onChange={(event) => setSendPdfToCompany(event.target.checked)}
+                  disabled={!selectedCompany}
+                  className="peer sr-only"
+                />
+                <span aria-hidden="true" className={`relative h-6 w-11 shrink-0 rounded-full transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-emerald-600 peer-focus-visible:ring-offset-2 ${sendPdfToCompany ? 'bg-emerald-600' : 'bg-slate-300'}`}>
+                  <span className={`absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${sendPdfToCompany ? 'translate-x-5' : 'translate-x-0'}`} />
+                </span>
+                <span className="min-w-0">
+                  <span className={`block text-sm font-semibold ${selectedCompany ? 'text-slate-800' : 'text-slate-400'}`}>Send PDF to Company</span>
+                  <span className="mt-0.5 block text-xs font-normal text-slate-500">{selectedCompany ? 'Share after saving the order' : 'Select a company to enable'}</span>
+                </span>
               </label>
             </div>
 

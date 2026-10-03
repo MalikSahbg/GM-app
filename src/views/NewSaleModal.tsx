@@ -60,8 +60,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
   // Set default product
   useEffect(() => {
     if (productsWithCompany.length > 0 && !activeProductId) {
-      const inStock = productsWithCompany.find((p) => p.stockQuantity > 0) || productsWithCompany[0];
-      setActiveProductId(inStock.id);
+      setActiveProductId(productsWithCompany[0].id);
     }
   }, [productsWithCompany, activeProductId]);
 
@@ -126,16 +125,6 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
 
     // Check existing quantity of this product already in cart
     const existingItem = items.find((it) => it.productId === activeProduct.id);
-    const existingQty = existingItem ? existingItem.quantity : 0;
-    const totalRequestedQty = existingQty + itemQty;
-
-    if (totalRequestedQty > activeProduct.stockQuantity) {
-      setErrorMsg(
-        `Insufficient stock for "${activeProduct.name}". Available: ${activeProduct.stockQuantity} ${activeProduct.unit || 'pcs'}.`
-      );
-      return;
-    }
-
     const unitPrice = activeProduct.price;
     const purchaseCost = activeProduct.purchasePrice || 0;
     const lineDiscount = Math.max(0, itemDiscount);
@@ -234,7 +223,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
             <div>
               <h2 className="text-base font-bold">New Multi-Product Sale Invoice</h2>
               <p className="text-xs text-emerald-100">
-                Add multiple products, auto-deduct stock, calculate profit & update Udhaar
+                Add products, calculate totals, and update Udhaar
               </p>
             </div>
           </div>
@@ -320,8 +309,8 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                   className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
                 >
                   {productsWithCompany.map((p) => (
-                    <option key={p.id} value={p.id} disabled={p.stockQuantity === 0}>
-                      {p.name} — {p.companyName} | Stock: {p.stockQuantity} {p.unit || 'pcs'} ({formatCurrency(p.price, settings.currency)})
+                    <option key={p.id} value={p.id}>
+                      {p.name} — {p.companyName} | {formatCurrency(p.price, settings.currency)}
                     </option>
                   ))}
                 </select>
@@ -335,7 +324,6 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                 <input
                   type="number"
                   min="1"
-                  max={activeProduct?.stockQuantity || 999}
                   value={itemQty}
                   onChange={(e) => setItemQty(Math.max(1, parseInt(e.target.value) || 1))}
                   className="w-full px-2.5 py-2 text-xs sm:text-sm font-bold bg-white border border-slate-300 rounded-xl text-center focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
@@ -382,10 +370,6 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                 )}
                 <span>
                   Rate: <strong>{formatCurrency(activeProduct.price, settings.currency)}</strong> / {activeProduct.unit || 'pcs'}
-                </span>
-                <span>•</span>
-                <span className={activeProduct.stockQuantity <= 5 ? 'text-amber-700 font-bold' : 'text-slate-500'}>
-                  In Stock: {activeProduct.stockQuantity} {activeProduct.unit || 'pcs'}
                 </span>
                 <span>•</span>
                 <span className="text-emerald-700">

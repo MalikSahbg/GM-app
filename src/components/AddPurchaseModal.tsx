@@ -163,9 +163,9 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({
               <Truck className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h2 className="text-base font-bold">Record Company Purchase (Stock Inflow)</h2>
+              <h2 className="text-base font-bold">Record Company Purchase</h2>
               <p className="text-xs text-blue-100">
-                Increases stock automatically and updates supplier payable Khata
+                Records purchase costs and updates supplier payable Khata
               </p>
             </div>
           </div>
@@ -252,7 +252,7 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({
                   >
                     {availableCompanyProducts.map((p) => (
                       <option key={p.id} value={p.id}>
-                        {p.name} [{p.stockQuantity} {p.unit} in stock]
+                        {p.name} [{p.unit}]
                       </option>
                     ))}
                   </select>
@@ -417,7 +417,7 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({
               className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-md transition-all active:scale-95 flex items-center gap-1.5"
             >
               <CheckCircle2 className="h-4 w-4" />
-              <span>Record Purchase & Update Stock</span>
+              <span>Record Purchase</span>
             </button>
           </div>
         </form>

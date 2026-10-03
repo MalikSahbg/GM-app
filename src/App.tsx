@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { App as CapacitorApp } from '@capacitor/app';
+import { Store } from 'lucide-react';
 import { useApp } from './context/AppContext';
 import { Header } from './components/Header';
 import { Navigation } from './components/Navigation';
 import { DashboardView } from './views/DashboardView';
 import { UdhaarView } from './views/UdhaarView';
-import { StockView } from './views/StockView';
 import { ProductView } from './views/ProductView';
 import { CompanyView } from './views/CompanyView';
 import { CustomerView } from './views/CustomerView';
@@ -14,6 +15,7 @@ import { PaymentsView } from './views/PaymentsView';
 import { ReportsView } from './views/ReportsView';
 import { SettingsView } from './views/SettingsView';
 import { OrdersView } from './views/OrdersView';
+import { AccountView } from './views/AccountView';
 import { NewSaleModal } from './views/NewSaleModal';
 import { SaleReceiptModal } from './components/SaleReceiptModal';
 import { AddProductModal } from './components/AddProductModal';
@@ -31,9 +33,23 @@ import { OrderPdfModal } from './components/OrderPdfModal';
 import { Sale, Customer, Company, CustomerOrder } from './types';
 
 export const App: React.FC = () => {
-  const { companies } = useApp();
+  const { companies, settings } = useApp();
+  const [showOpeningSplash, setShowOpeningSplash] = useState(true);
+
+  useEffect(() => {
+    const splashTimer = window.setTimeout(() => setShowOpeningSplash(false), 1100);
+    return () => window.clearTimeout(splashTimer);
+  }, []);
 
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
+  const tabHistory = useRef<string[]>([]);
+  const backHandlerRef = useRef<() => void>(() => undefined);
+  const navigateToTab = (tab: string) => {
+    if (tab === currentTab) return;
+    tabHistory.current.push(currentTab);
+    setCurrentTab(tab);
+  };
+  const [isNavigationOpen, setIsNavigationOpen] = useState(false);
 
   // Modals state
   const [isSaleModalOpen, setIsSaleModalOpen] = useState(false);
@@ -66,11 +82,40 @@ export const App: React.FC = () => {
   // Orders Modals
   const [isCreateOrderOpen, setIsCreateOrderOpen] = useState(false);
   const [orderToDuplicate, setOrderToDuplicate] = useState<CustomerOrder | null>(null);
+  const [orderToEdit, setOrderToEdit] = useState<CustomerOrder | null>(null);
   const [activeOrderDetails, setActiveOrderDetails] = useState<CustomerOrder | null>(null);
   const [activeOrderPdf, setActiveOrderPdf] = useState<{
     order: CustomerOrder;
     docType?: 'CUSTOMER' | 'COMPANY';
   } | null>(null);
+
+  backHandlerRef.current = () => {
+    if (isNavigationOpen) { setIsNavigationOpen(false); return; }
+    if (activeOrderPdf) { setActiveOrderPdf(null); return; }
+    if (activeDocument) { setActiveDocument(null); return; }
+    if (activeOrderDetails) { setActiveOrderDetails(null); return; }
+    if (isCreateOrderOpen) { setIsCreateOrderOpen(false); setOrderToDuplicate(null); setOrderToEdit(null); return; }
+    if (isAuthModalOpen) { setIsAuthModalOpen(false); return; }
+    if (isWhatsAppOpen) { setIsWhatsAppOpen(false); return; }
+    if (activeReceiptSale) { setActiveReceiptSale(null); return; }
+    if (isSaleModalOpen) { setIsSaleModalOpen(false); return; }
+    if (isCustomerPaymentOpen) { setIsCustomerPaymentOpen(false); return; }
+    if (isCompanyPaymentOpen) { setIsCompanyPaymentOpen(false); return; }
+    if (isAddPurchaseOpen) { setIsAddPurchaseOpen(false); return; }
+    if (isAddCustomerOpen) { setIsAddCustomerOpen(false); return; }
+    if (isAddCompanyOpen) { setIsAddCompanyOpen(false); return; }
+    if (isAddProductOpen) { setIsAddProductOpen(false); return; }
+    const previousTab = tabHistory.current.pop();
+    if (previousTab) setCurrentTab(previousTab);
+    else if (currentTab !== 'dashboard') setCurrentTab('dashboard');
+    else void CapacitorApp.exitApp();
+  };
+
+  useEffect(() => {
+    let listener: { remove: () => Promise<void> } | undefined;
+    void CapacitorApp.addListener('backButton', () => backHandlerRef.current()).then((handle) => { listener = handle; });
+    return () => { void listener?.remove(); };
+  }, []);
 
   // Handlers
   const handleOpenQuickSale = () => {
@@ -87,7 +132,16 @@ export const App: React.FC = () => {
   };
 
   const handleDuplicateOrder = (order: CustomerOrder) => {
+    setActiveOrderDetails(null);
+    setOrderToEdit(null);
     setOrderToDuplicate(order);
+    setIsCreateOrderOpen(true);
+  };
+
+  const handleEditOrder = (order: CustomerOrder) => {
+    setActiveOrderDetails(null);
+    setOrderToDuplicate(null);
+    setOrderToEdit(order);
     setIsCreateOrderOpen(true);
   };
 
@@ -140,31 +194,36 @@ export const App: React.FC = () => {
     <div className="min-h-screen bg-slate-100/70 text-slate-900 flex flex-col font-sans w-full max-w-full overflow-x-hidden">
       {/* Top Header */}
       <Header
-        currentTab={currentTab}
+        onOpenMenu={() => setIsNavigationOpen(true)}
         onSelectTab={(tab) => {
           if (tab === 'auth') setIsAuthModalOpen(true);
           else if (tab === 'whatsapp') handleOpenWhatsAppBroadcast();
-          else setCurrentTab(tab);
+          else navigateToTab(tab);
         }}
       />
 
-      {/* Main Tab Navigation */}
       <Navigation
+        isOpen={isNavigationOpen}
         currentTab={currentTab}
+        onClose={() => setIsNavigationOpen(false)}
         onSelectTab={(tab) => {
           if (tab === 'new-sale') {
             setIsSaleModalOpen(true);
+          } else if (tab === 'auth') {
+            setIsAuthModalOpen(true);
+          } else if (tab === 'whatsapp') {
+            handleOpenWhatsAppBroadcast();
           } else {
-            setCurrentTab(tab);
+            navigateToTab(tab);
           }
         }}
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 overflow-x-hidden">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-2 sm:px-4 lg:px-6 py-4 sm:py-6 overflow-x-hidden">
         {currentTab === 'dashboard' && (
           <DashboardView
-            onSelectTab={setCurrentTab}
+            onSelectTab={navigateToTab}
             onOpenQuickSale={handleOpenQuickSale}
             onOpenCreateOrder={handleOpenCreateOrder}
             onOpenAddProduct={handleOpenAddProduct}
@@ -207,13 +266,6 @@ export const App: React.FC = () => {
           <UdhaarView
             onOpenRecordPayment={handleOpenCustomerPayment}
             onOpenQuickSale={handleOpenQuickSale}
-          />
-        )}
-
-        {currentTab === 'stock' && (
-          <StockView
-            onOpenAddProduct={handleOpenAddProduct}
-            onEditProduct={handleEditProduct}
           />
         )}
 
@@ -264,6 +316,8 @@ export const App: React.FC = () => {
         {currentTab === 'settings' && (
           <SettingsView />
         )}
+
+        {currentTab === 'account' && <AccountView />}
       </main>
 
       {/* Modals */}
@@ -285,23 +339,25 @@ export const App: React.FC = () => {
         onClose={() => {
           setIsCreateOrderOpen(false);
           setOrderToDuplicate(null);
+          setOrderToEdit(null);
         }}
         initialOrderToDuplicate={orderToDuplicate}
+        initialOrderToEdit={orderToEdit}
         onOpenPdf={(order, docType) => setActiveOrderPdf({ order, docType })}
         onOpenDetails={(order) => setActiveOrderDetails(order)}
       />
 
       <OrderDetailsModal
-        isOpen={activeOrderDetails !== null}
         order={activeOrderDetails}
         onClose={() => setActiveOrderDetails(null)}
+        onDuplicate={handleDuplicateOrder}
+        onEdit={handleEditOrder}
         onOpenPdf={(order, docType) => setActiveOrderPdf({ order, docType })}
       />
 
       <OrderPdfModal
-        isOpen={activeOrderPdf !== null}
         order={activeOrderPdf?.order || null}
-        docType={activeOrderPdf?.docType || 'CUSTOMER'}
+        initialType={activeOrderPdf?.docType || 'CUSTOMER'}
         onClose={() => setActiveOrderPdf(null)}
       />
 
@@ -376,6 +432,23 @@ export const App: React.FC = () => {
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
       />
+
+      {showOpeningSplash && (
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white px-6 text-center" aria-label="Sales Manager starting">
+          {settings.logoUrl ? (
+            <img src={settings.logoUrl} alt="" className="mb-3 h-16 w-16 rounded-2xl border border-slate-200 object-contain" />
+          ) : (
+            <span className="mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white shadow-sm">
+              <Store className="h-8 w-8" />
+            </span>
+          )}
+          <p className="text-xl font-bold tracking-tight text-slate-900">Sales Manager</p>
+          <div className="mt-8 border-t border-slate-100 pt-3 text-xs leading-5 text-slate-500">
+            <p>Powered by Noman Ali</p>
+            <p>Phone: 03067458074</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -51,7 +51,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({
   const handleDelete = (id: string) => {
     if (
       window.confirm(
-        'Are you sure you want to void/delete this sale? The deducted quantity will be restored back to product inventory.'
+        'Are you sure you want to void/delete this sale?'
       )
     ) {
       deleteSale(id);
@@ -259,14 +259,14 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({
                     <button
                       onClick={() => onViewReceipt(sale)}
                       className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
-                      title="View / Print Receipt"
+                      title="View Receipt"
                     >
                       <Eye className="h-4 w-4" />
                     </button>
                     <button
                       onClick={() => handleDelete(sale.id)}
                       className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                      title="Void Sale & Restore Stock"
+                      title="Void Sale"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -365,14 +365,14 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({
                         <button
                           onClick={() => onViewReceipt(sale)}
                           className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
-                          title="View / Print Receipt"
+                          title="View Receipt"
                         >
                           <Eye className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => handleDelete(sale.id)}
                           className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                          title="Void Sale & Restore Stock"
+                          title="Void Sale"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>

@@ -2,7 +2,8 @@ import React from 'react';
 import { Sale, Customer, ProductWithCompany } from '../types';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { useApp } from '../context/AppContext';
-import { X, Printer, Share2, CheckCircle2 } from 'lucide-react';
+import { X, Download, Share2, CheckCircle2 } from 'lucide-react';
+import { createReportPdfFile, downloadOrderPdf, shareOrderPdf } from '../utils/orderPdf';
 
 interface SaleReceiptModalProps {
   sale: Sale | null;
@@ -17,8 +18,31 @@ export const SaleReceiptModal: React.FC<SaleReceiptModalProps> = ({ sale, onClos
   const customer = customers.find((c) => c.id === sale.customerId);
   const fallbackProduct = productsWithCompany.find((p) => p.id === sale.productId);
 
-  const handlePrint = () => {
-    window.print();
+  const createReceiptPdf = () => {
+    const items = sale.items?.length ? sale.items : [{ productName: fallbackProduct?.name || sale.productName || 'Product', quantity: sale.quantity || 1, unitPrice: sale.unitPrice || 0, discount: 0, totalPrice: sale.totalPrice }];
+    return createReportPdfFile(
+      `Sales Receipt ${sale.invoiceNumber || sale.id}`,
+      `Date: ${formatDate(sale.date)}  |  Customer: ${customer?.name || 'Walk-in Customer'}`,
+      [
+        { label: 'Total', value: formatCurrency(sale.totalPrice, settings.currency) },
+        { label: 'Paid', value: formatCurrency(sale.paidAmount, settings.currency) },
+        { label: 'Balance due', value: formatCurrency(sale.balanceDue, settings.currency) },
+      ],
+      ['Item', 'Quantity', 'Rate', 'Total'],
+      items.map((item) => [item.productName, item.quantity, formatCurrency(item.unitPrice, settings.currency), formatCurrency(item.totalPrice, settings.currency)]),
+      settings,
+      `receipt_${sale.invoiceNumber || sale.id}`
+    );
+  };
+
+  const handleSavePdf = async () => {
+    try { await downloadOrderPdf(createReceiptPdf()); alert('Receipt PDF saved to Documents/SalesManager.'); }
+    catch (error) { console.error('Receipt PDF save failed', error); alert('Could not save the receipt PDF. Please try again.'); }
+  };
+
+  const handleSharePdf = async () => {
+    try { await shareOrderPdf(createReceiptPdf(), `Receipt ${sale.invoiceNumber || sale.id}`); }
+    catch (error) { console.error('Receipt PDF share failed', error); alert('Could not share the receipt PDF. Please try again.'); }
   };
 
   const handleShare = () => {
@@ -59,7 +83,7 @@ export const SaleReceiptModal: React.FC<SaleReceiptModalProps> = ({ sale, onClos
           <div className="text-center border-b border-dashed border-slate-300 pb-4">
             <h2 className="text-lg font-bold text-slate-900">{settings.businessName}</h2>
             {settings.tagline && <p className="text-xs text-slate-500">{settings.tagline}</p>}
-            <p className="text-xs text-slate-500">{settings.address || 'Sales & Inventory Management'}</p>
+            <p className="text-xs text-slate-500">{settings.address || 'Sales Manager'}</p>
             {settings.phone && <p className="text-xs text-slate-500">Tel: {settings.phone}</p>}
             <p className="text-xs font-mono text-slate-400 mt-1">Invoice: #{sale.invoiceNumber || sale.id}</p>
             <p className="text-xs text-slate-500">{formatDate(sale.date)}</p>
@@ -174,18 +198,18 @@ export const SaleReceiptModal: React.FC<SaleReceiptModalProps> = ({ sale, onClos
         <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between print:hidden">
           <div className="flex items-center gap-2">
             <button
-              onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 rounded-xl transition-colors shadow-2xs"
+              onClick={handleSavePdf}
+              className="flex min-h-11 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100"
             >
-              <Printer className="h-3.5 w-3.5" />
-              <span>Print</span>
+              <Download className="h-4 w-4" />
+              <span>Save PDF</span>
             </button>
             <button
-              onClick={handleShare}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 rounded-xl transition-colors shadow-2xs"
+              onClick={handleSharePdf}
+              className="flex min-h-11 items-center gap-1.5 rounded-xl bg-emerald-700 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-600"
             >
-              <Share2 className="h-3.5 w-3.5" />
-              <span>Share</span>
+              <Share2 className="h-4 w-4" />
+              <span>Share PDF</span>
             </button>
           </div>
           <button

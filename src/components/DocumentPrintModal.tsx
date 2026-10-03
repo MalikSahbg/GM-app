@@ -1,8 +1,11 @@
-import React, { useRef } from 'react';
+import React from 'react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { useApp } from '../context/AppContext';
 import { formatCurrency, formatDate, formatShortDate } from '../utils/formatters';
-import { Printer, Download, Share2, X, Store, CheckCircle2, Phone, Mail, MapPin } from 'lucide-react';
+import { Download, Share2, X, Store, CheckCircle2, Phone, Mail, MapPin } from 'lucide-react';
 import { Sale, Customer, Company, CustomerBalance, CompanyBalance, Purchase, CustomerPayment, CompanyPayment } from '../types';
+import { createReportPdfFile, downloadOrderPdf, shareOrderPdf } from '../utils/orderPdf';
 
 export type DocumentType =
   | { type: 'SALE_INVOICE'; sale: Sale }
@@ -24,12 +27,68 @@ export const DocumentPrintModal: React.FC<DocumentPrintModalProps> = ({
   onSendWhatsApp,
 }) => {
   const { settings, customers, companies, sales, purchases, customerPayments, companyPayments, customerBalances, companyBalances } = useApp();
-  const printAreaRef = useRef<HTMLDivElement>(null);
-
   if (!isOpen || !doc) return null;
 
-  const handlePrint = () => {
-    window.print();
+  const createDocumentPdf = (): File => {
+    if (doc.type === 'REPORT') {
+      const filename = `${doc.title}_${new Date().toISOString().slice(0, 10)}`;
+      return createReportPdfFile(doc.title, doc.subtitle || '', doc.summaryCards, doc.headers, doc.rows, settings, filename);
+    }
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const width = pdf.internal.pageSize.getWidth();
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(16);
+    pdf.text(settings.businessName || 'Sales Manager', 14, 18, { maxWidth: width - 28 });
+    pdf.setFontSize(12);
+    let title = '';
+    let fileName = 'statement';
+    let headers: string[] = [];
+    let rows: (string | number)[][] = [];
+    let summary: { label: string; value: string }[] = [];
+    if (doc.type === 'SALE_INVOICE') {
+      const sale = doc.sale;
+      title = `Sales Invoice ${sale.invoiceNumber || sale.id}`;
+      fileName = `invoice_${sale.invoiceNumber || sale.id}`;
+      headers = ['#', 'Product', 'Qty', 'Unit price', 'Discount', 'Total'];
+      rows = (sale.items || []).map((item, index) => [index + 1, item.productName, item.quantity, formatCurrency(item.unitPrice, settings.currency), formatCurrency(item.discount, settings.currency), formatCurrency(item.totalPrice, settings.currency)]);
+      summary = [{ label: 'Customer', value: sale.customerName || customers.find((customer) => customer.id === sale.customerId)?.name || 'Customer' }, { label: 'Date', value: formatDate(sale.date) }, { label: 'Total', value: formatCurrency(sale.totalPrice, settings.currency) }, { label: 'Paid', value: formatCurrency(sale.paidAmount, settings.currency) }, { label: 'Balance due', value: formatCurrency(sale.balanceDue, settings.currency) }];
+    } else if (doc.type === 'CUSTOMER_KHATA') {
+      const customer = doc.customer;
+      title = `Customer Statement - ${customer.name}`;
+      fileName = `customer_statement_${customer.name}`;
+      headers = ['Date', 'Reference', 'Transaction', 'Debit', 'Credit', 'Balance'];
+      const ledger = [...sales.filter((sale) => sale.customerId === customer.id).map((sale) => ({ date: sale.date, ref: sale.invoiceNumber || sale.id, detail: 'Sale invoice', debit: sale.totalPrice, credit: sale.paidAmount })), ...customerPayments.filter((payment) => payment.customerId === customer.id).map((payment) => ({ date: payment.date, ref: payment.referenceNumber || payment.id, detail: payment.note || 'Payment received', debit: 0, credit: payment.amount }))].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      let balance = 0;
+      rows = ledger.map((entry) => { balance += entry.debit - entry.credit; return [formatShortDate(entry.date), entry.ref, entry.detail, formatCurrency(entry.debit, settings.currency), formatCurrency(entry.credit, settings.currency), formatCurrency(balance, settings.currency)]; });
+      const outstanding = customerBalances.find((entry) => entry.customerId === customer.id)?.outstandingBalance || 0;
+      summary = [{ label: 'Customer', value: customer.name }, { label: 'Phone', value: customer.phone || '-' }, { label: 'Outstanding balance', value: formatCurrency(outstanding, settings.currency) }];
+    } else {
+      const company = doc.company;
+      title = `Supplier Statement - ${company.name}`;
+      fileName = `supplier_statement_${company.name}`;
+      headers = ['Date', 'Reference', 'Transaction', 'Amount', 'Paid', 'Balance'];
+      const ledger = [...purchases.filter((purchase) => purchase.companyId === company.id).map((purchase) => ({ date: purchase.date, ref: purchase.billNumber || purchase.id, detail: 'Purchase bill', amount: purchase.totalAmount, paid: purchase.paidAmount })), ...companyPayments.filter((payment) => payment.companyId === company.id).map((payment) => ({ date: payment.date, ref: payment.referenceNumber || payment.id, detail: payment.note || 'Supplier payment', amount: 0, paid: payment.amount }))].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      let balance = 0;
+      rows = ledger.map((entry) => { balance += entry.amount - entry.paid; return [formatShortDate(entry.date), entry.ref, entry.detail, formatCurrency(entry.amount, settings.currency), formatCurrency(entry.paid, settings.currency), formatCurrency(balance, settings.currency)]; });
+      const outstanding = companyBalances.find((entry) => entry.companyId === company.id)?.remainingPayable || 0;
+      summary = [{ label: 'Supplier', value: company.name }, { label: 'Contact', value: company.contactPhone || '-' }, { label: 'Payable balance', value: formatCurrency(outstanding, settings.currency) }];
+    }
+    pdf.text(title, 14, 26, { maxWidth: width - 28 });
+    autoTable(pdf, { head: [['Details', 'Value']], body: summary, startY: 31, margin: { left: 14, right: 14, bottom: 15 }, styles: { fontSize: 9, cellPadding: 2.5, overflow: 'linebreak' }, headStyles: { fillColor: [15, 79, 68] }, columnStyles: { 0: { cellWidth: 45 } } });
+    const top = (pdf as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || 31;
+    autoTable(pdf, { head: [headers], body: rows.map((row) => row.map(String)), startY: top + 5, margin: { left: 14, right: 14, bottom: 15 }, styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak', valign: 'top' }, headStyles: { fillColor: [15, 79, 68] } });
+    for (let page = 1; page <= pdf.getNumberOfPages(); page += 1) { pdf.setPage(page); pdf.setFontSize(8); pdf.setTextColor(110); pdf.text('Powered by Noman Ali  |  Phone: 03067458074', width / 2, pdf.internal.pageSize.getHeight() - 7, { align: 'center' }); }
+    return new File([pdf.output('arraybuffer')], `${fileName.replace(/[^a-z0-9_-]+/gi, '_')}.pdf`, { type: 'application/pdf' });
+  };
+
+  const handleSavePdf = async () => {
+    try { await downloadOrderPdf(createDocumentPdf()); alert('PDF saved to Documents/SalesManager.'); }
+    catch (error) { console.error('PDF save failed', error); alert('The PDF could not be saved. Please try again.'); }
+  };
+
+  const handleSharePdf = async () => {
+    try { await shareOrderPdf(createDocumentPdf(), doc.type === 'REPORT' ? doc.title : 'Business document'); }
+    catch (error) { console.error('PDF share failed', error); alert('The PDF could not be shared. Please try again.'); }
   };
 
   const handleWhatsAppShare = () => {
@@ -62,7 +121,7 @@ export const DocumentPrintModal: React.FC<DocumentPrintModalProps> = ({
         <div className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between print:hidden">
           <div className="flex items-center gap-2">
             <span className="font-bold text-sm">Professional Document Preview</span>
-            <span className="text-xs text-slate-400">| Ready for PDF & Print</span>
+            <span className="text-xs text-slate-400">| PDF document</span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -76,13 +135,8 @@ export const DocumentPrintModal: React.FC<DocumentPrintModalProps> = ({
               </button>
             ) : null}
 
-            <button
-              onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-white text-slate-900 hover:bg-slate-100 text-xs font-bold rounded-lg shadow-xs transition-colors"
-            >
-              <Printer className="h-3.5 w-3.5" />
-              <span>Print / Save PDF</span>
-            </button>
+            <button onClick={handleSavePdf} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-white px-3 text-xs font-bold text-slate-900 shadow-sm transition hover:bg-slate-100"><Download className="h-4 w-4" /><span>Save PDF</span></button>
+            <button onClick={handleSharePdf} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-xs font-bold text-white transition hover:bg-emerald-500"><Share2 className="h-4 w-4" /><span>Share PDF</span></button>
 
             <button
               onClick={onClose}
@@ -94,7 +148,7 @@ export const DocumentPrintModal: React.FC<DocumentPrintModalProps> = ({
         </div>
 
         {/* Printable Paper Canvas */}
-        <div className="overflow-y-auto p-6 sm:p-10 flex-1 bg-slate-50 print:bg-white print:p-0" id="print-section" ref={printAreaRef}>
+        <div className="overflow-y-auto p-4 sm:p-8 flex-1 bg-slate-50" id="print-section">
           <div className="bg-white p-6 sm:p-8 rounded-xl shadow-xs print:shadow-none border border-slate-200 print:border-none max-w-2xl mx-auto text-slate-900 font-sans text-xs">
             {/* Header: Business Info & Logo */}
             <div className="flex items-start justify-between border-b-2 border-slate-900 pb-5">
@@ -407,7 +461,7 @@ export const DocumentPrintModal: React.FC<DocumentPrintModalProps> = ({
                         {formatCurrency(bal?.remainingPayable || 0, settings.currency)}
                       </p>
                       <p className="text-[10px] text-slate-500">
-                        Total Stock Purchased: {formatCurrency(bal?.totalPurchasedAmount || 0, settings.currency)}
+                        Total Purchases: {formatCurrency(bal?.totalPurchasedAmount || 0, settings.currency)}
                       </p>
                     </div>
                   </div>

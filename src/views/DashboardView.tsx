@@ -6,10 +6,8 @@ import {
   TrendingUp,
   Package,
   Users,
-  AlertTriangle,
   ShoppingCart,
   Building2,
-  Boxes,
   ArrowRight,
   Share2,
   DollarSign,
@@ -44,12 +42,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     orders,
     customerBalances,
     salesDetailed,
-    productsWithCompany,
     customerPayments,
-    adjustStock,
     settings,
   } = useApp();
-  const [restockSuccessId, setRestockSuccessId] = useState<string | null>(null);
   const [recentTab, setRecentTab] = useState<'SALES' | 'PAYMENTS'>('SALES');
 
   // Top unpaid customers
@@ -58,21 +53,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     .sort((a, b) => b.outstandingBalance - a.outstandingBalance)
     .slice(0, 5);
 
-  // Low stock items
-  const lowStockProducts = productsWithCompany
-    .filter((p) => p.stockQuantity <= (p.minStockThreshold || 5))
-    .slice(0, 6);
-
   // Recent 6 sales
   const recentSales = salesDetailed.slice(0, 6);
   // Recent 6 payments
   const recentPayments = customerPayments.slice(0, 6);
-
-  const handleQuickRestock = (productId: string) => {
-    adjustStock(productId, 10, 'Quick restock from Dashboard');
-    setRestockSuccessId(productId);
-    setTimeout(() => setRestockSuccessId(null), 2000);
-  };
 
   const handleShareWhatsApp = (customerName: string, phone: string, amount: number) => {
     const text = `Assalam-o-Alaikum ${customerName},\nYour current outstanding balance at *${settings.businessName}* is *${formatCurrency(amount, settings.currency)}*.\nPlease arrange payment at your earliest convenience.\nThank you!`;
@@ -96,77 +80,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {/* Prominent + Create Order Button (Point 1) */}
+          {/* Primary order action */}
           <button
             onClick={onOpenCreateOrder}
-            className="flex items-center gap-2 px-4 sm:px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-extrabold text-sm rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95 border border-white/20"
+            className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/20 bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-500 active:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:px-5"
           >
-            <Plus className="h-4.5 w-4.5 stroke-[3]" />
-            <span>+ Create Order</span>
-          </button>
-
-          <button
-            onClick={onOpenQuickSale}
-            className="flex items-center gap-2 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm rounded-xl shadow-md transition-all active:scale-95"
-          >
-            <ShoppingCart className="h-4 w-4" />
-            <span>New Sale</span>
+            <span>Create Order</span>
           </button>
           <button
             onClick={() => onSelectTab('orders')}
-            className="flex items-center gap-2 px-3.5 py-2.5 bg-white/10 hover:bg-white/20 text-white font-medium text-sm rounded-xl backdrop-blur-xs transition-colors"
+            className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-white/20 active:bg-white/15"
           >
             <ClipboardList className="h-4 w-4 text-emerald-300" />
             <span>Orders ({orders.length})</span>
           </button>
-        </div>
-      </div>
-
-      {/* Field Orders Overview Banner */}
-      <div
-        onClick={() => onSelectTab('orders')}
-        className="bg-gradient-to-r from-teal-50 via-emerald-50 to-white border border-teal-200/80 rounded-2xl p-4 shadow-2xs hover:border-emerald-400 transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-      >
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-teal-600 text-white rounded-xl shadow-xs">
-            <ClipboardList className="h-5 w-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-bold text-sm text-slate-900">
-                Order Booking & Management
-              </h3>
-              {stats.pendingOrdersCount && stats.pendingOrdersCount > 0 ? (
-                <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
-                  {stats.pendingOrdersCount} Pending
-                </span>
-              ) : (
-                <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                  All Clear
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-slate-600 mt-0.5">
-              Today: <strong>{stats.todayOrdersCount || 0}</strong> orders ({stats.todayOrdersQuantity || 0} items) | Total Saved: <strong>{orders.length}</strong> orders
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 self-end sm:self-center">
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenCreateOrder();
-            }}
-            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1"
+            onClick={() => onSelectTab('orders')}
+            className="min-h-11 rounded-xl px-3.5 py-2.5 text-sm font-medium text-emerald-50 underline-offset-4 transition-colors hover:bg-white/10 hover:underline"
           >
-            <Plus className="h-3.5 w-3.5" />
-            <span>Book New Order</span>
+            View All
           </button>
-          <span className="text-xs font-semibold text-teal-700 flex items-center gap-0.5 hover:underline">
-            <span>View All</span>
-            <ArrowRight className="h-3.5 w-3.5" />
-          </span>
         </div>
       </div>
 
@@ -265,8 +198,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
-      {/* Secondary 4 Metrics: Customers, Companies, Total Products, Low Stock */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 sm:gap-4">
+      {/* Secondary Metrics */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5 sm:gap-4">
         <div
           onClick={() => onSelectTab('customers')}
           className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-2xs hover:border-teal-300 cursor-pointer transition-colors"
@@ -300,27 +233,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <p className="text-xl font-bold text-slate-900 mt-1">{stats.totalProducts}</p>
         </div>
 
-        <div
-          onClick={() => onSelectTab('stock')}
-          className={`rounded-xl p-3.5 border shadow-2xs cursor-pointer transition-colors ${
-            stats.lowStockCount > 0
-              ? 'bg-amber-50/70 border-amber-200 hover:border-amber-300'
-              : 'bg-white border-slate-200 hover:border-emerald-300'
-          }`}
-        >
-          <div className="flex items-center justify-between text-slate-500">
-            <span className="text-xs font-semibold">Low Stock Items</span>
-            <AlertTriangle className={`h-4 w-4 ${stats.lowStockCount > 0 ? 'text-amber-600' : 'text-slate-400'}`} />
-          </div>
-          <div className="flex items-baseline gap-2 mt-1">
-            <p className={`text-xl font-bold ${stats.lowStockCount > 0 ? 'text-amber-800' : 'text-slate-900'}`}>
-              {stats.lowStockCount}
-            </p>
-            {stats.lowStockCount > 0 && (
-              <span className="text-[10px] font-semibold text-amber-700">Need restock</span>
-            )}
-          </div>
-        </div>
       </div>
 
       {/* Quick Launch Buttons */}
@@ -391,7 +303,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
-      {/* Main Split: Top Udhaar Debtors & Low Stock Alerts */}
+      {/* Highest Outstanding Udhaar */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Udhaar Priority List */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs flex flex-col">
@@ -425,7 +337,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </p>
                     <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500">
                       <span className="truncate">{debtor.customerPhone}</span>
-                      <span>•</span>
+                      <span>â€¢</span>
                       <span>{debtor.totalSales} orders</span>
                     </div>
                   </div>
@@ -461,68 +373,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
-        {/* Low Stock Warning Box */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs flex flex-col">
-          <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-amber-500" />
-              <h2 className="text-base font-bold text-slate-900">Low Stock Inventory Alerts</h2>
-            </div>
-            <button
-              onClick={() => onSelectTab('stock')}
-              className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
-            >
-              <span>Manage Stock</span>
-              <ArrowRight className="h-3.5 w-3.5" />
-            </button>
-          </div>
-
-          <div className="divide-y divide-slate-100 p-2 sm:p-4 flex-1">
-            {lowStockProducts.length === 0 ? (
-              <div className="text-center py-8 text-slate-500">
-                <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto mb-2" />
-                <p className="font-semibold text-sm text-slate-800">Stock Levels are Healthy!</p>
-                <p className="text-xs text-slate-500 mt-0.5">No products currently below minimum threshold.</p>
-              </div>
-            ) : (
-              lowStockProducts.map((product) => (
-                <div key={product.id} className="py-3 px-2 flex items-center justify-between gap-3 hover:bg-slate-50 rounded-lg transition-colors">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-900 truncate">
-                      {product.name}
-                    </p>
-                    <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500">
-                      <span className="truncate">{product.companyName}</span>
-                      <span>•</span>
-                      <span>{formatCurrency(product.price, settings.currency)}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="text-right">
-                      <span className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full ${
-                        product.stockQuantity === 0
-                          ? 'bg-rose-100 text-rose-800'
-                          : 'bg-amber-100 text-amber-800'
-                      }`}>
-                        <AlertTriangle className="h-3 w-3" />
-                        {product.stockQuantity} {product.unit || 'left'}
-                      </span>
-                    </div>
-
-                    <button
-                      onClick={() => handleQuickRestock(product.id)}
-                      disabled={restockSuccessId === product.id}
-                      className="px-2.5 py-1 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
-                    >
-                      {restockSuccessId === product.id ? '✓ Restocked' : '+10 Restock'}
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
       </div>
 
       {/* Recent Sales & Payments Activity */}

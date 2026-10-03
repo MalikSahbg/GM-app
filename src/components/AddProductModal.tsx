@@ -34,8 +34,6 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
   const [companyId, setCompanyId] = useState('');
   const [purchasePrice, setPurchasePrice] = useState<number>(0);
   const [price, setPrice] = useState<number>(0);
-  const [stockQuantity, setStockQuantity] = useState<number>(10);
-  const [minStockThreshold, setMinStockThreshold] = useState<number>(5);
   const [category, setCategory] = useState('');
   const [sku, setSku] = useState('');
   const [unit, setUnit] = useState('pcs');
@@ -50,8 +48,6 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
       setCompanyId(productToEdit.companyId);
       setPurchasePrice(productToEdit.purchasePrice || 0);
       setPrice(productToEdit.price);
-      setStockQuantity(productToEdit.stockQuantity);
-      setMinStockThreshold(productToEdit.minStockThreshold ?? 5);
       setCategory(productToEdit.category || '');
       setSku(productToEdit.sku || '');
       setUnit(productToEdit.unit || 'pcs');
@@ -60,8 +56,6 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
       setName('');
       setPurchasePrice(0);
       setPrice(0);
-      setStockQuantity(10);
-      setMinStockThreshold(5);
       setCategory('');
       setSku('');
       setUnit('pcs');
@@ -119,18 +113,11 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
       return;
     }
 
-    if (stockQuantity < 0) {
-      setErrorMsg('Stock quantity cannot be negative');
-      return;
-    }
-
     const payload = {
       name: name.trim(),
       companyId,
       purchasePrice,
       price,
-      stockQuantity,
-      minStockThreshold,
       category: category.trim() || undefined,
       sku: sku.trim() || undefined,
       unit: unit || 'pcs',
@@ -300,51 +287,22 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
             </div>
           </div>
 
-          {/* Stock & Unit */}
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                Stock Qty *
-              </label>
-              <input
-                type="number"
-                min="0"
-                required
-                value={stockQuantity}
-                onChange={(e) => setStockQuantity(Math.max(0, parseInt(e.target.value) || 0))}
-                className="w-full px-3 py-2 text-sm font-semibold bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                Unit *
-              </label>
-              <select
-                value={unit}
-                onChange={(e) => setUnit(e.target.value)}
-                className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
-              >
-                {COMMON_UNITS.map((u) => (
-                  <option key={u} value={u}>
-                    {u}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1" title="Low stock threshold">
-                Min Stock Alert
-              </label>
-              <input
-                type="number"
-                min="1"
-                value={minStockThreshold}
-                onChange={(e) => setMinStockThreshold(Math.max(1, parseInt(e.target.value) || 5))}
-                className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
-              />
-            </div>
+          {/* Unit */}
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+              Unit
+            </label>
+            <select
+              value={unit}
+              onChange={(e) => setUnit(e.target.value)}
+              className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+            >
+              {COMMON_UNITS.map((u) => (
+                <option key={u} value={u}>
+                  {u}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Category & SKU / Barcode */}

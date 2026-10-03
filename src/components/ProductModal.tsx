@@ -27,8 +27,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [companyId, setCompanyId] = useState('');
   const [purchasePrice, setPurchasePrice] = useState<number>(0);
   const [price, setPrice] = useState<number>(100);
-  const [stockQuantity, setStockQuantity] = useState<number>(10);
-  const [minStockThreshold, setMinStockThreshold] = useState<number>(5);
   const [category, setCategory] = useState('');
   const [sku, setSku] = useState('');
   const [unit, setUnit] = useState('pcs');
@@ -41,8 +39,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setCompanyId(editingProduct.companyId);
       setPurchasePrice(editingProduct.purchasePrice || 0);
       setPrice(editingProduct.price);
-      setStockQuantity(editingProduct.stockQuantity);
-      setMinStockThreshold(editingProduct.minStockThreshold ?? 5);
       setCategory(editingProduct.category || '');
       setSku(editingProduct.sku || '');
       setUnit(editingProduct.unit || 'pcs');
@@ -52,8 +48,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setCompanyId(defaultCompanyId || (companies[0]?.id ?? ''));
       setPurchasePrice(0);
       setPrice(100);
-      setStockQuantity(10);
-      setMinStockThreshold(5);
       setCategory('');
       setSku('');
       setUnit('pcs');
@@ -97,18 +91,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setError('Purchase cost cannot be negative.');
       return;
     }
-    if (stockQuantity < 0) {
-      setError('Stock quantity cannot be negative.');
-      return;
-    }
-
     const payload = {
       name: name.trim(),
       companyId,
       purchasePrice,
       price,
-      stockQuantity,
-      minStockThreshold,
       category: category.trim() || undefined,
       sku: sku.trim() || undefined,
       unit: unit || 'pcs',
@@ -267,24 +254,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
-              <div>
+            <div>
                 <label className="text-xs font-semibold uppercase text-slate-600 block mb-1">
-                  Stock Units *
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  required
-                  value={stockQuantity}
-                  onChange={(e) => setStockQuantity(Math.max(0, parseInt(e.target.value) || 0))}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold uppercase text-slate-600 block mb-1">
-                  Unit *
+                  Unit
                 </label>
                 <select
                   value={unit}
@@ -297,20 +269,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     </option>
                   ))}
                 </select>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold uppercase text-slate-600 block mb-1">
-                  Min Stock Alert
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={minStockThreshold}
-                  onChange={(e) => setMinStockThreshold(Math.max(1, parseInt(e.target.value) || 5))}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">

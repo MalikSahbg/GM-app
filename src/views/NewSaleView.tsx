@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, formatDate } from '../utils/formatters';
+import { createReportPdfFile, downloadOrderPdf, shareOrderPdf } from '../utils/orderPdf';
 import {
   ShoppingCart,
   Users,
@@ -9,7 +10,8 @@ import {
   CheckCircle2,
   Plus,
   Coins,
-  Receipt,
+  Download,
+  Share2,
   RotateCcw,
 } from 'lucide-react';
 import { Sale } from '../types';
@@ -25,7 +27,7 @@ export const NewSaleView: React.FC<NewSaleViewProps> = ({
   onOpenAddProduct,
   onSaleCompleted,
 }) => {
-  const { customers, productsWithCompany, recordSale } = useApp();
+  const { customers, productsWithCompany, recordSale, settings } = useApp();
 
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [selectedProductId, setSelectedProductId] = useState<string>('');
@@ -33,6 +35,20 @@ export const NewSaleView: React.FC<NewSaleViewProps> = ({
   const [paidAmount, setPaidAmount] = useState<number>(0);
   const [paymentMode, setPaymentMode] = useState<'FULL_CASH' | 'FULL_UDHAAR' | 'CUSTOM'>('FULL_CASH');
   const [notes, setNotes] = useState<string>('');
+
+  const createReceiptPdf = (sale: Sale) => createReportPdfFile(
+    `Sales Receipt ${sale.invoiceNumber || sale.id}`,
+    `Date: ${formatDate(sale.date)}  |  Customer: ${sale.customerName || 'Customer'}`,
+    [
+      { label: 'Total', value: formatCurrency(sale.totalPrice, settings.currency) },
+      { label: 'Paid', value: formatCurrency(sale.paidAmount, settings.currency) },
+      { label: 'Balance due', value: formatCurrency(sale.balanceDue, settings.currency) },
+    ],
+    ['Product', 'Quantity', 'Rate', 'Total'],
+    (sale.items || []).map((item) => [item.productName, item.quantity, formatCurrency(item.unitPrice, settings.currency), formatCurrency(item.totalPrice, settings.currency)]),
+    settings,
+    `receipt_${sale.invoiceNumber || sale.id}`
+  );
 
   const [error, setError] = useState<string | null>(null);
   const [successSale, setSuccessSale] = useState<Sale | null>(null);
@@ -46,9 +62,7 @@ export const NewSaleView: React.FC<NewSaleViewProps> = ({
 
   useEffect(() => {
     if (!selectedProductId && productsWithCompany.length > 0) {
-      // Pick first in-stock product
-      const inStock = productsWithCompany.find((p) => p.stockQuantity > 0) || productsWithCompany[0];
-      setSelectedProductId(inStock.id);
+      setSelectedProductId(productsWithCompany[0].id);
     }
   }, [productsWithCompany, selectedProductId]);
 
@@ -75,9 +89,6 @@ export const NewSaleView: React.FC<NewSaleViewProps> = ({
   }, [paymentMode, totalPrice]);
 
   const balanceDue = Math.max(0, totalPrice - paidAmount);
-  const isOutOfStock = selectedProduct ? selectedProduct.stockQuantity === 0 : true;
-  const isExceedingStock = selectedProduct ? quantity > selectedProduct.stockQuantity : false;
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -94,11 +105,6 @@ export const NewSaleView: React.FC<NewSaleViewProps> = ({
       setError('Quantity must be at least 1.');
       return;
     }
-    if (selectedProduct && quantity > selectedProduct.stockQuantity) {
-      setError(`Requested quantity (${quantity}) exceeds current available stock (${selectedProduct.stockQuantity}).`);
-      return;
-    }
-
     const result = recordSale(selectedCustomerId, selectedProductId, quantity, paidAmount, notes);
     if (!result.success || !result.sale) {
       setError(result.error || 'Failed to record sale');
@@ -131,7 +137,7 @@ export const NewSaleView: React.FC<NewSaleViewProps> = ({
             <h1 className="text-xl font-bold text-slate-900">Record New Sale</h1>
           </div>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Deducts stock in real-time and automatically updates customer's Udhaar ledger.
+            Records the sale and updates the customer's Udhaar ledger.
           </p>
         </div>
 
@@ -207,12 +213,11 @@ export const NewSaleView: React.FC<NewSaleViewProps> = ({
               <RotateCcw className="h-4 w-4" />
               <span>Record Another Sale</span>
             </button>
-            <button
-              onClick={() => window.print()}
-              className="w-full sm:w-auto px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm rounded-xl transition-colors flex items-center justify-center gap-2"
-            >
-              <Receipt className="h-4 w-4" />
-              <span>Print Receipt</span>
+            <button onClick={async () => { try { await downloadOrderPdf(createReceiptPdf(successSale)); } catch (error) { console.error(error); alert('Could not save the receipt PDF.'); } }} className="w-full min-h-11 sm:w-auto rounded-xl bg-slate-100 px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 active:translate-y-px flex items-center justify-center gap-2">
+              <Download className="h-4 w-4" /><span>Save PDF</span>
+            </button>
+            <button onClick={async () => { try { await shareOrderPdf(createReceiptPdf(successSale), `Receipt ${successSale.invoiceNumber || successSale.id}`); } catch (error) { console.error(error); alert('Could not share the receipt PDF.'); } }} className="w-full min-h-11 sm:w-auto rounded-xl bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-600 active:translate-y-px flex items-center justify-center gap-2">
+              <Share2 className="h-4 w-4" /><span>Share PDF</span>
             </button>
           </div>
         </div>
@@ -291,9 +296,8 @@ export const NewSaleView: React.FC<NewSaleViewProps> = ({
                 className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
               >
                 {productsWithCompany.map((p) => (
-                  <option key={p.id} value={p.id} disabled={p.stockQuantity === 0}>
-                    {p.name} — {formatCurrency(p.price)} [{p.stockQuantity} in stock] ({p.companyName})
-                    {p.stockQuantity === 0 ? ' (OUT OF STOCK)' : ''}
+                  <option key={p.id} value={p.id}>
+                    {p.name} — {formatCurrency(p.price)} ({p.companyName})
                   </option>
                 ))}
               </select>
@@ -308,17 +312,6 @@ export const NewSaleView: React.FC<NewSaleViewProps> = ({
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-slate-900">{formatCurrency(selectedProduct.price)} / unit</span>
-                  <span
-                    className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
-                      selectedProduct.stockQuantity === 0
-                        ? 'bg-rose-100 text-rose-800'
-                        : selectedProduct.stockQuantity <= 5
-                        ? 'bg-amber-100 text-amber-800'
-                        : 'bg-emerald-100 text-emerald-800'
-                    }`}
-                  >
-                    {selectedProduct.stockQuantity} available
-                  </span>
                 </div>
               </div>
             )}
@@ -330,11 +323,6 @@ export const NewSaleView: React.FC<NewSaleViewProps> = ({
               <label className="text-xs font-semibold uppercase tracking-wider text-slate-600">
                 Quantity to Sell
               </label>
-              {selectedProduct && (
-                <span className="text-xs text-slate-400">
-                  Max available: {selectedProduct.stockQuantity}
-                </span>
-              )}
             </div>
 
             <div className="flex items-center gap-3">
@@ -348,35 +336,21 @@ export const NewSaleView: React.FC<NewSaleViewProps> = ({
               <input
                 type="number"
                 min="1"
-                max={selectedProduct?.stockQuantity || 999}
                 value={quantity}
                 onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                className={`flex-1 px-4 py-2.5 text-center font-bold text-lg rounded-xl border ${
-                  isExceedingStock
-                    ? 'border-rose-500 bg-rose-50 text-rose-800 focus:ring-rose-500'
-                    : 'border-slate-200 bg-white text-slate-900 focus:ring-emerald-500'
-                } focus:outline-none focus:ring-2`}
+                className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-center text-lg font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
               <button
                 type="button"
                 onClick={() =>
-                  setQuantity((prev) =>
-                    selectedProduct ? Math.min(selectedProduct.stockQuantity, prev + 1) : prev + 1
-                  )
+                  setQuantity((prev) => prev + 1)
                 }
-                disabled={Boolean(selectedProduct && quantity >= selectedProduct.stockQuantity)}
-                className="h-11 w-11 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-700 font-bold text-lg flex items-center justify-center transition-colors"
+                className="h-11 w-11 rounded-xl bg-slate-100 text-lg font-bold text-slate-700 transition-colors hover:bg-slate-200"
               >
                 +
               </button>
             </div>
 
-            {isExceedingStock && (
-              <p className="text-xs text-rose-600 font-medium mt-1.5 flex items-center gap-1">
-                <AlertCircle className="h-3.5 w-3.5" />
-                <span>Quantity cannot exceed current stock ({selectedProduct?.stockQuantity}).</span>
-              </p>
-            )}
           </div>
 
           {/* Pricing & Udhaar Breakdown Card */}
@@ -483,11 +457,10 @@ export const NewSaleView: React.FC<NewSaleViewProps> = ({
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={isOutOfStock || isExceedingStock}
-            className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-base rounded-xl shadow-md transition-all active:scale-[0.99] flex items-center justify-center gap-2"
+            className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-base rounded-xl shadow-md transition-all active:scale-[0.99] flex items-center justify-center gap-2"
           >
             <ShoppingCart className="h-5 w-5" />
-            <span>RECORD SALE & DEDUCT STOCK</span>
+            <span>RECORD SALE</span>
           </button>
         </form>
       )}

@@ -51,7 +51,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
   const handleDelete = (id: string, billNum?: string) => {
     if (
       window.confirm(
-        `Void purchase bill "${billNum || id}"? Note: The added stock will be deducted from your inventory.`
+        `Void purchase bill "${billNum || id}"?`
       )
     ) {
       deletePurchase(id);
@@ -73,11 +73,11 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
         <div>
           <span className="text-blue-200 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
             <Truck className="h-4 w-4" />
-            <span>Supplier Purchases & Stock Inward</span>
+            <span>Supplier Purchases</span>
           </span>
-          <h1 className="text-2xl font-bold tracking-tight mt-1">Company Purchases (Stock Inflow)</h1>
+          <h1 className="text-2xl font-bold tracking-tight mt-1">Company Purchases</h1>
           <p className="text-blue-100/80 text-xs sm:text-sm mt-1">
-            Receiving goods automatically increases product stock and updates supplier payable balances.
+            Record supplier purchases and track payable balances.
           </p>
         </div>
 
@@ -146,7 +146,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
               {filteredPurchases.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-slate-400 text-xs">
-                    No purchase records found. Click "+ New Purchase" to receive stock from a company.
+                    No purchase records found. Click "+ New Purchase" to record a company purchase.
                   </td>
                 </tr>
               ) : (
@@ -226,7 +226,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                           <button
                             onClick={() => handleDelete(purchase.id, purchase.billNumber)}
                             className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                            title="Void Purchase (Reverts Stock)"
+                            title="Void Purchase"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>

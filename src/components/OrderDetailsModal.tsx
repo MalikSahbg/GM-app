@@ -6,7 +6,6 @@ import {
   X,
   FileText,
   Copy,
-  Printer,
   MessageCircle,
   Share2,
   Trash2,
@@ -115,7 +114,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
       ? `\n*Total Value:* ${formatCurrency(order.totalAmount, settings.currency)}`
       : '';
 
-    const text = `*Order Booking for ${order.companyName}*\n*Order #${order.orderNumber}*\nDate: ${formatDate(order.date)}\nFrom: ${settings.businessName}\nBooker: ${order.salesRepName || settings.phone}\nCustomer: ${order.customerName}\n\n*Required Stock:*\n${itemsList}\n${totalStr}\n\nPlease dispatch this order at your earliest.`;
+    const text = `*Order Booking for ${order.companyName}*\n*Order #${order.orderNumber}*\nDate: ${formatDate(order.date)}\nFrom: ${settings.businessName}\nBooker: ${order.salesRepName || settings.phone}\nCustomer: ${order.customerName}\n\n*Products Requested:*\n${itemsList}\n${totalStr}\n\nPlease dispatch this order at your earliest.`;
 
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
@@ -331,7 +330,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
               onClick={() => onOpenPdf(order, 'CUSTOMER')}
               className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors shadow-xs"
             >
-              <Printer className="h-3.5 w-3.5 text-emerald-400" />
+              <FileText className="h-3.5 w-3.5 text-emerald-400" />
               <span>Generate PDF</span>
             </button>
 

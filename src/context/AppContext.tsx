@@ -118,6 +118,7 @@ interface AppContextType {
   currentUser: User | null;
   settings: BusinessSettings;
   updateSettings: (newSettings: Partial<BusinessSettings>) => void;
+  updateProfile: (profile: Partial<Pick<User, 'name' | 'phone' | 'profileImage'>>) => void;
   
   companies: Company[];
   products: Product[];
@@ -150,8 +151,6 @@ interface AppContextType {
   addProduct: (data: Omit<Product, 'id' | 'createdAt'>) => Product;
   updateProduct: (id: string, data: Partial<Omit<Product, 'id' | 'createdAt'>>) => void;
   deleteProduct: (id: string) => { success: boolean; error?: string };
-  adjustStock: (id: string, deltaQuantity: number, reason?: string, type?: StockAdjustment['type']) => void;
-  setStockQuantity: (id: string, newQuantity: number, reason?: string) => void;
   
   // Customers
   addCustomer: (data: Omit<Customer, 'id' | 'createdAt'>) => Customer;
@@ -177,7 +176,7 @@ interface AppContextType {
   ) => { success: boolean; error?: string; sale?: Sale };
   deleteSale: (id: string) => void;
   
-  // Purchases (Stock incoming from companies)
+  // Supplier purchases
   recordPurchase: (data: {
     companyId: string;
     billNumber?: string;
@@ -267,7 +266,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       ...p,
       purchasePrice: p.purchasePrice !== undefined ? p.purchasePrice : Math.round(p.price * 0.78),
       unit: p.unit || 'pcs',
-      minStockThreshold: p.minStockThreshold !== undefined ? p.minStockThreshold : 5,
     }));
   });
 
@@ -414,11 +412,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         customerId: c.id,
         customerName: c.name,
         customerPhone: c.phone,
+        customerWhatsApp: c.whatsapp,
         totalPurchased,
         totalPaid,
         outstandingBalance,
         lastSaleDate,
         totalSales: custSales.length,
+        status: outstandingBalance > 0 ? 'UNPAID' : 'PAID',
       };
     });
   }, [customers, sales, customerPayments]);
@@ -451,9 +451,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         remainingPayable,
         lastPurchaseDate,
         totalPurchasesCount: compPurchases.length,
+        productsCount: products.filter((p) => p.companyId === c.id).length,
       };
     });
-  }, [companies, purchases, companyPayments]);
+  }, [companies, purchases, companyPayments, products]);
 
   // Derived: Overall Business Statistics
   const stats = useMemo<DashboardStats>(() => {
@@ -472,10 +473,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const totalUdhaar = customerBalances.reduce((acc, b) => acc + b.outstandingBalance, 0);
     const totalPayable = companyBalances.reduce((acc, b) => acc + b.remainingPayable, 0);
     const pendingUdhaarCustomers = customerBalances.filter((b) => b.outstandingBalance > 0).length;
-
-    const lowStockCount = products.filter(
-      (p) => p.stockQuantity <= (p.minStockThreshold || 5)
-    ).length;
 
     const totalPurchasesAmount = purchases.reduce((acc, p) => acc + p.totalAmount, 0);
 
@@ -496,7 +493,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       totalPayable,
       pendingUdhaarCustomers,
       totalProducts: products.length,
-      lowStockCount,
       totalCustomers: customers.length,
       totalCompanies: companies.length,
       totalPurchasesAmount,
@@ -510,6 +506,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Business settings update
   const updateSettings = (newSettings: Partial<BusinessSettings>) => {
     setSettings((prev) => ({ ...prev, ...newSettings }));
+  };
+
+  const updateProfile = (profile: Partial<Pick<User, 'name' | 'phone' | 'profileImage'>>) => {
+    setCurrentUser((user) => user ? { ...user, ...profile } : user);
   };
 
   // Helper to load bundle into state cleanly
@@ -698,7 +698,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       id: 'prod-' + Date.now(),
       createdAt: new Date().toISOString(),
       purchasePrice: data.purchasePrice !== undefined ? data.purchasePrice : Math.round(data.price * 0.78),
-      minStockThreshold: data.minStockThreshold !== undefined ? data.minStockThreshold : 5,
       unit: data.unit || 'pcs',
     };
     setProducts((prev) => [newProduct, ...prev]);
@@ -723,43 +722,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
     setProducts((prev) => prev.filter((p) => p.id !== id));
     return { success: true };
-  };
-
-  const adjustStock = (
-    id: string,
-    deltaQuantity: number,
-    reason?: string,
-    type: StockAdjustment['type'] = 'CORRECTION'
-  ) => {
-    const prod = products.find((p) => p.id === id);
-    if (!prod) return;
-
-    const previousQuantity = prod.stockQuantity;
-    const newQuantity = Math.max(0, previousQuantity + deltaQuantity);
-
-    setProducts((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, stockQuantity: newQuantity } : p))
-    );
-
-    const adjustment: StockAdjustment = {
-      id: 'adj-' + Date.now(),
-      productId: id,
-      productName: prod.name,
-      previousQuantity,
-      newQuantity,
-      adjustmentQuantity: deltaQuantity,
-      reason: reason || 'Manual stock adjustment',
-      date: new Date().toISOString(),
-      type,
-    };
-    setStockAdjustments((prev) => [adjustment, ...prev]);
-  };
-
-  const setStockQuantity = (id: string, newQuantity: number, reason?: string) => {
-    const prod = products.find((p) => p.id === id);
-    if (!prod) return;
-    const delta = newQuantity - prod.stockQuantity;
-    adjustStock(id, delta, reason || 'Stock set directly', 'AUDIT');
   };
 
   // Customer operations
@@ -815,17 +777,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return { success: false, error: 'Cannot record sale with no items' };
     }
 
-    // Verify stock availability
+    // Ensure selected products still exist.
     for (const item of data.items) {
       const prod = products.find((p) => p.id === item.productId);
       if (!prod) {
         return { success: false, error: `Product "${item.productName}" not found.` };
-      }
-      if (prod.stockQuantity < item.quantity) {
-        return {
-          success: false,
-          error: `Insufficient stock for "${prod.name}". Available: ${prod.stockQuantity}, Requested: ${item.quantity}`,
-        };
       }
     }
 
@@ -857,18 +813,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       notes: data.notes,
     };
 
-    // Deduct stock for all items
-    setProducts((prev) => {
-      const itemMap = new Map(data.items.map((it) => [it.productId, it.quantity]));
-      return prev.map((p) => {
-        const deductQty = itemMap.get(p.id);
-        if (deductQty !== undefined) {
-          return { ...p, stockQuantity: Math.max(0, p.stockQuantity - deductQty) };
-        }
-        return p;
-      });
-    });
-
     setSales((prev) => [newSale, ...prev]);
     return { success: true, sale: newSale };
   };
@@ -897,7 +841,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const singleItem: SaleItem = {
       productId: prod.id,
       productName: prod.name,
-      companyName: prod.companyName,
+      companyName: companies.find((company) => company.id === prod.companyId)?.name,
       unit: prod.unit || 'pcs',
       purchasePrice: cost,
       unitPrice: itemPrice,
@@ -919,32 +863,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const saleToDelete = sales.find((s) => s.id === id);
     if (!saleToDelete) return;
 
-    // Restore inventory
-    if (saleToDelete.items && saleToDelete.items.length > 0) {
-      setProducts((prev) => {
-        const itemMap = new Map(saleToDelete.items.map((it) => [it.productId, it.quantity]));
-        return prev.map((p) => {
-          const addQty = itemMap.get(p.id);
-          if (addQty !== undefined) {
-            return { ...p, stockQuantity: p.stockQuantity + addQty };
-          }
-          return p;
-        });
-      });
-    } else if (saleToDelete.productId && saleToDelete.quantity) {
-      setProducts((prev) =>
-        prev.map((p) =>
-          p.id === saleToDelete.productId
-            ? { ...p, stockQuantity: p.stockQuantity + (saleToDelete.quantity || 1) }
-            : p
-        )
-      );
-    }
-
     setSales((prev) => prev.filter((s) => s.id !== id));
   };
 
-  // Purchases (Stock incoming from companies)
+  // Supplier purchases
   const recordPurchase = (data: {
     companyId: string;
     billNumber?: string;
@@ -980,7 +902,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       notes: data.notes,
     };
 
-    // Increase product inventory stock & update purchase price
+    // Keep supplier cost current without maintaining stock counts.
     setProducts((prev) => {
       const itemMap = new Map(data.items.map((it) => [it.productId, it]));
       return prev.map((p) => {
@@ -988,8 +910,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (purItem) {
           return {
             ...p,
-            stockQuantity: p.stockQuantity + purItem.quantity,
-            purchasePrice: purItem.unitCost,
+            purchasePrice: purItem.costPrice,
           };
         }
         return p;
@@ -1003,18 +924,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const deletePurchase = (id: string) => {
     const pur = purchases.find((p) => p.id === id);
     if (!pur) return;
-
-    // Deduct stock added by this purchase
-    setProducts((prev) => {
-      const itemMap = new Map(pur.items.map((it) => [it.productId, it.quantity]));
-      return prev.map((p) => {
-        const deductQty = itemMap.get(p.id);
-        if (deductQty !== undefined) {
-          return { ...p, stockQuantity: Math.max(0, p.stockQuantity - deductQty) };
-        }
-        return p;
-      });
-    });
 
     setPurchases((prev) => prev.filter((p) => p.id !== id));
   };
@@ -1087,7 +996,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const totalProducts = data.items.length;
     const totalQuantity = data.items.reduce((sum, it) => sum + it.quantity, 0);
-    const totalAmount = data.items.reduce((sum, it) => sum + (it.totalPrice || it.price * it.quantity), 0);
+    const totalAmount = data.items.reduce((sum, it) => sum + (it.totalPrice ?? (it.price ?? 0) * it.quantity), 0);
 
     const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
     const newOrder: CustomerOrder = {
@@ -1107,6 +1016,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       showPrice: data.showPrice !== undefined ? data.showPrice : true,
       status: data.status || 'Pending',
       date: data.date || new Date().toISOString(),
+      createdAt: new Date().toISOString(),
       notes: data.notes,
     };
 
@@ -1123,7 +1033,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           updated.totalProducts = data.items.length;
           updated.totalQuantity = data.items.reduce((sum, it) => sum + it.quantity, 0);
           updated.totalAmount = data.items.reduce(
-            (sum, it) => sum + (it.totalPrice || it.price * it.quantity),
+            (sum, it) => sum + (it.totalPrice ?? (it.price ?? 0) * it.quantity),
             0
           );
         }
@@ -1232,6 +1142,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         currentUser,
         settings,
         updateSettings,
+        updateProfile,
         companies,
         products,
         customers,
@@ -1255,8 +1166,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         addProduct,
         updateProduct,
         deleteProduct,
-        adjustStock,
-        setStockQuantity,
         addCustomer,
         updateCustomer,
         deleteCustomer,

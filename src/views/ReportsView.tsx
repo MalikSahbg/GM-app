@@ -5,12 +5,10 @@ import {
   BarChart3,
   Calendar,
   Download,
-  Printer,
   TrendingUp,
   DollarSign,
   ShoppingCart,
   Truck,
-  Boxes,
   Users,
   Building2,
   Wallet,
@@ -24,10 +22,10 @@ interface ReportsViewProps {
 }
 
 export const ReportsView: React.FC<ReportsViewProps> = ({ onOpenDocument }) => {
-  const { salesDetailed, purchases, customerBalances, companyBalances, productsWithCompany, settings } = useApp();
+  const { salesDetailed, purchases, customerBalances, companyBalances, settings } = useApp();
 
   const [activeReport, setActiveReport] = useState<
-    'PROFIT_LOSS' | 'SALES' | 'PURCHASES' | 'STOCK' | 'RECEIVABLES' | 'PAYABLES'
+    'PROFIT_LOSS' | 'SALES' | 'PURCHASES' | 'RECEIVABLES' | 'PAYABLES'
   >('PROFIT_LOSS');
 
   const [dateFilter, setDateFilter] = useState<'ALL' | 'TODAY' | 'WEEK' | 'MONTH'>('ALL');
@@ -70,14 +68,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ onOpenDocument }) => {
   const profitMarginPercent = totalSalesRevenue > 0 ? (totalProfitCalculated / totalSalesRevenue) * 100 : 0;
 
   const totalPurchasesCost = filteredPurchases.reduce((acc, p) => acc + p.totalAmount, 0);
-  const totalStockInventoryValue = productsWithCompany.reduce((acc, p) => acc + p.price * p.stockQuantity, 0);
-  const totalStockCostValue = productsWithCompany.reduce((acc, p) => acc + (p.purchasePrice || p.price * 0.78) * p.stockQuantity, 0);
-
   const totalReceivableDebt = customerBalances.reduce((acc, b) => acc + b.outstandingBalance, 0);
   const totalPayableDebt = companyBalances.reduce((acc, b) => acc + b.remainingPayable, 0);
 
-  // Print formatted report
-  const handlePrintCurrentReport = () => {
+  // Prepare the current filtered report for saving or sharing as a PDF.
+  const handleOpenCurrentReportPdf = () => {
     let title = 'Financial Report';
     let headers: string[] = [];
     let rows: (string | number)[][] = [];
@@ -140,24 +135,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ onOpenDocument }) => {
         formatCurrency(p.paidAmount, settings.currency),
         formatCurrency(p.balancePayable, settings.currency),
       ]);
-    } else if (activeReport === 'STOCK') {
-      title = 'Inventory & Valuation Report';
-      summaryCards = [
-        { label: 'Total Products', value: `${productsWithCompany.length} items` },
-        { label: 'Total Stock Units', value: `${productsWithCompany.reduce((a, p) => a + p.stockQuantity, 0)} units` },
-        { label: 'Cost Valuation', value: formatCurrency(totalStockCostValue, settings.currency) },
-        { label: 'Retail Valuation', value: formatCurrency(totalStockInventoryValue, settings.currency), color: 'text-emerald-700' },
-      ];
-      headers = ['Product Name', 'Supplier', 'Stock Units', 'Unit Cost', 'Sale Price', 'Total Cost Value', 'Total Sale Value'];
-      rows = productsWithCompany.map((p) => [
-        p.name,
-        p.companyName,
-        `${p.stockQuantity} ${p.unit || 'pcs'}`,
-        formatCurrency(p.purchasePrice || p.price * 0.78, settings.currency),
-        formatCurrency(p.price, settings.currency),
-        formatCurrency((p.purchasePrice || p.price * 0.78) * p.stockQuantity, settings.currency),
-        formatCurrency(p.price * p.stockQuantity, settings.currency),
-      ]);
     } else if (activeReport === 'RECEIVABLES') {
       title = 'Customer Receivables (Udhaar Aging) Report';
       summaryCards = [
@@ -195,7 +172,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ onOpenDocument }) => {
     onOpenDocument({
       type: 'REPORT',
       title,
-      subtitle: `Filter: ${dateFilter} • Generated on ${formatDate(new Date().toISOString())}`,
+      subtitle: `Filter: ${dateFilter} â€¢ Generated on ${formatDate(new Date().toISOString())}`,
       summaryCards,
       headers,
       rows,
@@ -250,87 +227,37 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ onOpenDocument }) => {
             <span>Export CSV</span>
           </button>
           <button
-            onClick={handlePrintCurrentReport}
-            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-md transition-all active:scale-95"
+            onClick={handleOpenCurrentReportPdf}
+            className="min-h-10 flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-500 active:translate-y-px"
           >
-            <Printer className="h-4 w-4" />
-            <span>Print / PDF Report</span>
+            <Download className="h-4 w-4" />
+            <span>Save PDF</span>
           </button>
         </div>
       </div>
 
       {/* Date Filter & Report Category Selector */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        {/* Report Tabs */}
-        <div className="flex items-center gap-1 overflow-x-auto p-1 bg-slate-100 rounded-xl">
-          <button
-            onClick={() => setActiveReport('PROFIT_LOSS')}
-            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors whitespace-nowrap ${
-              activeReport === 'PROFIT_LOSS' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Profit & Loss
-          </button>
-          <button
-            onClick={() => setActiveReport('SALES')}
-            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors whitespace-nowrap ${
-              activeReport === 'SALES' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Sales Report
-          </button>
-          <button
-            onClick={() => setActiveReport('PURCHASES')}
-            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors whitespace-nowrap ${
-              activeReport === 'PURCHASES' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Purchases Report
-          </button>
-          <button
-            onClick={() => setActiveReport('STOCK')}
-            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors whitespace-nowrap ${
-              activeReport === 'STOCK' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Stock Valuation
-          </button>
-          <button
-            onClick={() => setActiveReport('RECEIVABLES')}
-            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors whitespace-nowrap ${
-              activeReport === 'RECEIVABLES' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Receivables (Udhaar)
-          </button>
-          <button
-            onClick={() => setActiveReport('PAYABLES')}
-            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors whitespace-nowrap ${
-              activeReport === 'PAYABLES' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Payables (Suppliers)
-          </button>
-        </div>
+        <label className="grid min-w-0 flex-1 gap-1.5 text-xs font-semibold text-slate-600">
+          Report
+          <select value={activeReport} onChange={(event) => setActiveReport(event.target.value as typeof activeReport)} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100">
+            <option value="PROFIT_LOSS">Profit &amp; Loss</option>
+            <option value="SALES">Sales Report</option>
+            <option value="PURCHASES">Purchases Report</option>
+            <option value="RECEIVABLES">Receivables (Udhaar)</option>
+            <option value="PAYABLES">Payables (Suppliers)</option>
+          </select>
+        </label>
 
-        {/* Date Filter */}
-        <div className="flex items-center gap-1.5 text-xs">
-          <Calendar className="h-4 w-4 text-slate-400" />
-          <span className="text-slate-500 font-semibold">Period:</span>
-          {(['ALL', 'TODAY', 'WEEK', 'MONTH'] as const).map((period) => (
-            <button
-              key={period}
-              onClick={() => setDateFilter(period)}
-              className={`px-2.5 py-1 rounded-lg font-semibold transition-colors ${
-                dateFilter === period
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {period === 'ALL' ? 'All Time' : period === 'TODAY' ? 'Today' : period === 'WEEK' ? 'Last 7 Days' : 'This Month'}
-            </button>
-          ))}
-        </div>
+        <label className="grid min-w-0 flex-1 gap-1.5 text-xs font-semibold text-slate-600">
+          <span className="flex items-center gap-1.5"><Calendar className="h-4 w-4 text-slate-400" />Period</span>
+          <select value={dateFilter} onChange={(event) => setDateFilter(event.target.value as typeof dateFilter)} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100">
+            <option value="ALL">All Time</option>
+            <option value="TODAY">Today</option>
+            <option value="WEEK">Last 7 Days</option>
+            <option value="MONTH">This Month</option>
+          </select>
+        </label>
       </div>
 
       {/* Summary KPI Cards for Active Report */}
@@ -402,37 +329,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ onOpenDocument }) => {
           </>
         )}
 
-        {activeReport === 'STOCK' && (
-          <>
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-              <span className="text-xs uppercase font-bold text-slate-500 block">Stock Cost Value</span>
-              <p className="text-2xl font-black text-slate-900 mt-1">
-                {formatCurrency(totalStockCostValue, settings.currency)}
-              </p>
-              <span className="text-[11px] text-slate-400 mt-1 block">Purchase cost of all shelf inventory</span>
-            </div>
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-              <span className="text-xs uppercase font-bold text-slate-500 block">Retail Selling Value</span>
-              <p className="text-2xl font-black text-emerald-700 mt-1">
-                {formatCurrency(totalStockInventoryValue, settings.currency)}
-              </p>
-              <span className="text-[11px] text-slate-400 mt-1 block">If all current stock is sold</span>
-            </div>
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-              <span className="text-xs uppercase font-bold text-slate-500 block">Potential Gross Profit</span>
-              <p className="text-2xl font-black text-blue-700 mt-1">
-                {formatCurrency(totalStockInventoryValue - totalStockCostValue, settings.currency)}
-              </p>
-            </div>
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-              <span className="text-xs uppercase font-bold text-slate-500 block">Total Stock Units</span>
-              <p className="text-2xl font-black text-slate-900 mt-1">
-                {productsWithCompany.reduce((a, p) => a + p.stockQuantity, 0)} units
-              </p>
-            </div>
-          </>
-        )}
-
         {activeReport === 'RECEIVABLES' && (
           <>
             <div className="bg-white p-5 rounded-2xl border border-rose-300 shadow-xs bg-rose-50/20 sm:col-span-2">
@@ -494,44 +390,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ onOpenDocument }) => {
                         <span className="px-2 py-0.5 rounded-full font-bold bg-emerald-50 text-emerald-800 text-[10px]">
                           {margin}%
                         </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-
-          {activeReport === 'STOCK' && (
-            <table className="w-full text-left text-xs text-slate-600">
-              <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200">
-                <tr>
-                  <th className="py-3 px-4">Product Name</th>
-                  <th className="py-3 px-4">Supplier Company</th>
-                  <th className="py-3 px-4 text-center">Available Stock</th>
-                  <th className="py-3 px-4 text-right">Cost Price</th>
-                  <th className="py-3 px-4 text-right">Sale Price</th>
-                  <th className="py-3 px-4 text-right">Total Cost Value</th>
-                  <th className="py-3 px-4 text-right">Total Sale Value</th>
-                  <th className="py-3 px-4 text-right">Profit Potential</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {productsWithCompany.map((p) => {
-                  const cost = p.purchasePrice || p.price * 0.78;
-                  const totalCost = cost * p.stockQuantity;
-                  const totalSale = p.price * p.stockQuantity;
-                  return (
-                    <tr key={p.id} className="hover:bg-slate-50/80">
-                      <td className="py-3 px-4 font-bold text-slate-900">{p.name}</td>
-                      <td className="py-3 px-4">{p.companyName}</td>
-                      <td className="py-3 px-4 text-center font-bold">{p.stockQuantity} {p.unit}</td>
-                      <td className="py-3 px-4 text-right">{formatCurrency(cost, settings.currency)}</td>
-                      <td className="py-3 px-4 text-right font-bold text-slate-900">{formatCurrency(p.price, settings.currency)}</td>
-                      <td className="py-3 px-4 text-right">{formatCurrency(totalCost, settings.currency)}</td>
-                      <td className="py-3 px-4 text-right font-bold text-slate-900">{formatCurrency(totalSale, settings.currency)}</td>
-                      <td className="py-3 px-4 text-right font-black text-emerald-700">
-                        {formatCurrency(totalSale - totalCost, settings.currency)}
                       </td>
                     </tr>
                   );

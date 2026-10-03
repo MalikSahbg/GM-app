@@ -9,7 +9,6 @@ import {
   Trash2,
   Edit2,
   AlertTriangle,
-  Boxes,
   Image as ImageIcon,
 } from 'lucide-react';
 
@@ -142,9 +141,7 @@ export const ProductView: React.FC<ProductViewProps> = ({
               No products found. Click "Add Product" to create one.
             </div>
           ) : (
-            filteredProducts.map((p) => {
-              const isLow = p.stockQuantity <= (p.minStockThreshold || 5);
-              return (
+            filteredProducts.map((p) => (
                 <div key={p.id} className="p-4 space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
@@ -164,17 +161,6 @@ export const ProductView: React.FC<ProductViewProps> = ({
                       </div>
                     </div>
 
-                    <span
-                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-bold rounded-full shrink-0 ${
-                        p.stockQuantity === 0
-                          ? 'bg-rose-100 text-rose-800'
-                          : isLow
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-emerald-100 text-emerald-800'
-                      }`}
-                    >
-                      {p.stockQuantity} {p.unit || 'pcs'}
-                    </span>
                   </div>
 
                   <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100">
@@ -210,8 +196,7 @@ export const ProductView: React.FC<ProductViewProps> = ({
                     </div>
                   </div>
                 </div>
-              );
-            })
+            ))
           )}
         </div>
 
@@ -225,21 +210,18 @@ export const ProductView: React.FC<ProductViewProps> = ({
                 <th className="py-3 px-4">Category</th>
                 <th className="py-3 px-4 text-right">Cost Price</th>
                 <th className="py-3 px-4 text-right">Sale Price</th>
-                <th className="py-3 px-4 text-center">Stock</th>
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400 text-xs">
+                  <td colSpan={6} className="py-12 text-center text-slate-400 text-xs">
                     No products found. Click "Add Product" to create one.
                   </td>
                 </tr>
               ) : (
-                filteredProducts.map((p) => {
-                  const isLow = p.stockQuantity <= (p.minStockThreshold || 5);
-                  return (
+                filteredProducts.map((p) => (
                     <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-3.5 px-4 font-semibold text-slate-900">
                         <div className="flex items-center gap-3">
@@ -278,19 +260,6 @@ export const ProductView: React.FC<ProductViewProps> = ({
                           <span className="block text-[10px] text-slate-400 font-normal">per {p.unit || 'pcs'}</span>
                         </div>
                       </td>
-                      <td className="py-3.5 px-4 text-center">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-bold rounded-full ${
-                            p.stockQuantity === 0
-                              ? 'bg-rose-100 text-rose-800'
-                              : isLow
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-emerald-100 text-emerald-800'
-                          }`}
-                        >
-                          {p.stockQuantity} {p.unit || 'pcs'}
-                        </span>
-                      </td>
                       <td className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <button
@@ -310,8 +279,7 @@ export const ProductView: React.FC<ProductViewProps> = ({
                         </div>
                       </td>
                     </tr>
-                  );
-                })
+                ))
               )}
             </tbody>
           </table>
